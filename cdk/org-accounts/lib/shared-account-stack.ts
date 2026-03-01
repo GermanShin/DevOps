@@ -8,6 +8,7 @@ import { Construct } from "constructs";
 
 interface SharedAccountStackProps extends cdk.StackProps {
   devVpcCidr: string;
+  devAccountId: string;
 }
 
 export class SharedAccountStack extends cdk.Stack {
@@ -35,11 +36,11 @@ export class SharedAccountStack extends cdk.Stack {
       allowAllOutbound: false,
     });
 
-    // Allow outbound TCP to dev account RDS only
+    // Allow outbound TCP to dev account EC2/RDS only
     codeBuildSg.addEgressRule(
       ec2.Peer.ipv4(props.devVpcCidr),
       ec2.Port.tcp(5432),
-      "Allow outbound to dev account RDS"
+      "Allow outbound to dev account target"
     );
 
     // --- IAM Role for CodeBuild (least privilege) ---
@@ -48,13 +49,13 @@ export class SharedAccountStack extends cdk.Stack {
       description: "Role for DS TCP check CodeBuild project",
     });
 
-    // Allow reading SSM parameters from dev account
+    // Allow reading SSM parameters
     codeBuildRole.addToPolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["ssm:GetParameter", "ssm:GetParameters"],
         resources: [
-          `arn:aws:ssm:ap-southeast-2:${props.env?.account}:parameter/ds/dev/*`,
+          `arn:aws:ssm:ap-southeast-2:${props.devAccountId}:parameter/ds/dev/*`,
         ],
       })
     );
@@ -88,7 +89,7 @@ export class SharedAccountStack extends cdk.Stack {
       })
     );
 
-    // --- CodeBuild Project ---
+    // --- CodeBuild Project (Linux) ---
     const tcpCheckProject = new codebuild.Project(this, "TcpCheckProject", {
       projectName: "ds-tcp-check",
       role: codeBuildRole,
@@ -96,29 +97,33 @@ export class SharedAccountStack extends cdk.Stack {
       securityGroups: [codeBuildSg],
       subnetSelection: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       environment: {
-        buildImage: codebuild.WindowsBuildImage.WIN_SERVER_CORE_2019_BASE_3_0,
+        buildImage: codebuild.LinuxBuildImage.STANDARD_7_0, // Linux
       },
       buildSpec: codebuild.BuildSpec.fromObject({
         version: "0.2",
         phases: {
+          install: {
+            commands: [
+              // Install postgresql client for psql
+              "apt-get update -y",
+              "apt-get install -y postgresql-client netcat-openbsd",
+            ],
+          },
           build: {
             commands: [
-              // Fetch DB endpoint from SSM
-              '$DB_HOST = (Get-SSMParameter -Name "/ds/dev/db-endpoint" -WithDecryption $false).Value',
-              '$DB_PORT = (Get-SSMParameter -Name "/ds/dev/db-port" -WithDecryption $false).Value',
-              // TCP Connection check
-              'Write-Host "Checking TCP connection to $DB_HOST:$DB_PORT"',
-              "$tcp = New-Object System.Net.Sockets.TcpClient",
-              "try {",
-              "  $tcp.Connect($DB_HOST, [int]$DB_PORT)",
-              "  if ($tcp.Connected) {",
-              '    Write-Host "SUCCESS: TCP Connection established to $DB_HOST:$DB_PORT"',
-              "    $tcp.Close()",
-              "  }",
-              "} catch {",
-              '  Write-Host "FAILED: TCP Connection failed to $DB_HOST:$DB_PORT - $_"',
-              "  exit 1",
-              "}",
+              // Fetch target host and port from SSM
+              "export TARGET_HOST=$(aws ssm get-parameter --name /ds/dev/target-host --query Parameter.Value --output text --region ap-southeast-2)",
+              "export TARGET_PORT=$(aws ssm get-parameter --name /ds/dev/target-port --query Parameter.Value --output text --region ap-southeast-2)",
+
+              // Step 1: TCP connectivity check using netcat
+              'echo "=== Step 1: TCP Connectivity Check ==="',
+              'nc -zv $TARGET_HOST $TARGET_PORT -w 5 && echo "SUCCESS: TCP connection to $TARGET_HOST:$TARGET_PORT" || (echo "FAILED: TCP connection to $TARGET_HOST:$TARGET_PORT" && exit 1)',
+
+              // Step 2: PSQL connection check (Phase 2 - uncomment when RDS is added)
+              // 'echo "=== Step 2: PSQL Connection Check ==="',
+              // 'export DB_USER=$(aws secretsmanager get-secret-value --secret-id /ds/dev/db-credentials --query SecretString --output text | python3 -c "import sys,json; print(json.load(sys.stdin)[\"username\"])")',
+              // 'export DB_PASS=$(aws secretsmanager get-secret-value --secret-id /ds/dev/db-credentials --query SecretString --output text | python3 -c "import sys,json; print(json.load(sys.stdin)[\"password\"])")',
+              // 'PGPASSWORD=$DB_PASS psql -h $TARGET_HOST -p $TARGET_PORT -U $DB_USER -d dsdevdb -c "SELECT version();"',
             ],
           },
         },

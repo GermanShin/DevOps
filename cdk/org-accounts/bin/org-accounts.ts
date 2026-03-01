@@ -5,8 +5,20 @@ import { DevAccountStack } from "../lib/dev-account-stack";
 import { SharedAccountStack } from "../lib/shared-account-stack";
 
 const app = new cdk.App();
+
 new OrgAccountsStack(app, "OrgAccountsStack", {});
-new DevAccountStack(app, "DevAccountStack", {});
+
+const ACCOUNTS = {
+  shared: { account: "890336468788", region: "ap-southeast-2" },
+  dev: { account: "409749468395", region: "ap-southeast-2" },
+};
+
+const devStack = new DevAccountStack(app, "DevAccountStack", {
+  env: ACCOUNTS.dev,
+});
+
 new SharedAccountStack(app, "SharedAccountStack", {
-  devVpcCidr: "10.1.0.0/16",
+  env: ACCOUNTS.shared,
+  devVpcCidr: devStack.vpcCidr,
+  devAccountId: ACCOUNTS.dev.account,
 });

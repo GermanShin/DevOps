@@ -1,8 +1,6 @@
 import * as cdk from "aws-cdk-lib";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
-import * as rds from "aws-cdk-lib/aws-rds";
 import * as ssm from "aws-cdk-lib/aws-ssm";
-import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
@@ -15,7 +13,7 @@ export class DevAccountStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // --- VPC ---
+    // --- VPC (private subnets only, no NAT Gateway) ---
     const vpc = new ec2.Vpc(this, "DevVpc", {
       ipAddresses: ec2.IpAddresses.cidr(this.vpcCidr),
       maxAzs: 2,
@@ -29,66 +27,54 @@ export class DevAccountStack extends cdk.Stack {
       ],
     });
 
-    // --- Security Group for RDS ---
-    const dbSecurityGroup = new ec2.SecurityGroup(this, "DbSecurityGroup", {
-      vpc,
-      description: "Allow PostgreSQL from shared account only",
-      allowAllOutbound: false,
-    });
-
-    dbSecurityGroup.addIngressRule(
-      ec2.Peer.ipv4("10.0.0.0/16"),
-      ec2.Port.tcp(5432),
-      "Allow PostgreSQL from shared account"
+    // --- Security Group for EC2 ---
+    const instanceSecurityGroup = new ec2.SecurityGroup(
+      this,
+      "InstanceSecurityGroup",
+      {
+        vpc,
+        description: "Allow TCP from shared account only",
+        allowAllOutbound: false,
+      }
     );
 
-    // --- DB Credentials in Secrets Manager ---
-    const dbSecret = new secretsmanager.Secret(this, "DbSecret", {
-      secretName: "/ds/dev/db-credentials",
-      generateSecretString: {
-        secretStringTemplate: JSON.stringify({ username: "dbadmin" }),
-        generateStringKey: "password",
-        excludePunctuation: true,
-      },
-    });
+    // Allow inbound TCP on port 5432 from shared account VPC CIDR only
+    instanceSecurityGroup.addIngressRule(
+      ec2.Peer.ipv4("10.0.0.0/16"),
+      ec2.Port.tcp(5432),
+      "Allow TCP from shared account"
+    );
 
-    // --- RDS PostgreSQL ---
-    const db = new rds.DatabaseInstance(this, "DevDatabase", {
-      engine: rds.DatabaseInstanceEngine.postgres({
-        version: rds.PostgresEngineVersion.VER_15,
-      }),
-      instanceIdentifier: "ds-dev-db",
+    // --- EC2 Instance (free tier t2.micro) ---
+    const instance = new ec2.Instance(this, "DevInstance", {
+      instanceName: "ds-dev-instance",
       instanceType: ec2.InstanceType.of(
-        ec2.InstanceClass.T3,
-        ec2.InstanceSize.MICRO
+        ec2.InstanceClass.T2,
+        ec2.InstanceSize.MICRO // free tier eligible
       ),
+      machineImage: ec2.MachineImage.latestAmazonLinux2(),
       vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
-      securityGroups: [dbSecurityGroup],
-      credentials: rds.Credentials.fromSecret(dbSecret),
-      multiAz: false,
-      allocatedStorage: 20,
-      storageEncrypted: true,
-      deletionProtection: true,
-      publiclyAccessible: false,
-      databaseName: "dsdevdb",
+      securityGroup: instanceSecurityGroup,
     });
 
-    // --- IAM Role for Lambda ---
-    const lambdaRole = new iam.Role(this, "RdsSchedulerRole", {
+    // --- IAM Role for Start/Stop Lambda ---
+    const lambdaRole = new iam.Role(this, "InstanceSchedulerRole", {
       assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-      description: "Role for RDS start/stop Lambda",
+      description: "Role for EC2 start/stop Lambda",
     });
 
     lambdaRole.addToPolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: [
-          "rds:StartDBInstance",
-          "rds:StopDBInstance",
-          "rds:DescribeDBInstances",
+          "ec2:StartInstances",
+          "ec2:StopInstances",
+          "ec2:DescribeInstances",
         ],
-        resources: [db.instanceArn],
+        resources: [
+          `arn:aws:ec2:ap-southeast-2:${this.account}:instance/${instance.instanceId}`,
+        ],
       })
     );
 
@@ -104,89 +90,93 @@ export class DevAccountStack extends cdk.Stack {
       })
     );
 
-    // --- Lambda: Start RDS ---
-    const startRdsLambda = new lambda.Function(this, "StartRdsLambda", {
-      functionName: "ds-start-rds",
+    // --- Lambda: Start EC2 ---
+    const startInstanceLambda = new lambda.Function(
+      this,
+      "StartInstanceLambda",
+      {
+        functionName: "ds-start-instance",
+        runtime: lambda.Runtime.PYTHON_3_12,
+        handler: "index.handler",
+        role: lambdaRole,
+        timeout: cdk.Duration.seconds(30),
+        environment: {
+          INSTANCE_ID: instance.instanceId,
+        },
+        code: lambda.Code.fromInline(`
+import boto3
+import os
+
+def handler(event, context):
+    ec2 = boto3.client('ec2', region_name='ap-southeast-2')
+    instance_id = os.environ['INSTANCE_ID']
+    try:
+        ec2.start_instances(InstanceIds=[instance_id])
+        print(f"Successfully started EC2 instance: {instance_id}")
+    except Exception as e:
+        print(f"Error starting EC2: {e}")
+        raise
+      `),
+      }
+    );
+
+    // --- Lambda: Stop EC2 ---
+    const stopInstanceLambda = new lambda.Function(this, "StopInstanceLambda", {
+      functionName: "ds-stop-instance",
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: "index.handler",
       role: lambdaRole,
       timeout: cdk.Duration.seconds(30),
       environment: {
-        DB_INSTANCE_ID: "ds-dev-db",
+        INSTANCE_ID: instance.instanceId,
       },
       code: lambda.Code.fromInline(`
 import boto3
 import os
 
 def handler(event, context):
-    rds = boto3.client('rds', region_name='ap-southeast-2')
-    db_id = os.environ['DB_INSTANCE_ID']
+    ec2 = boto3.client('ec2', region_name='ap-southeast-2')
+    instance_id = os.environ['INSTANCE_ID']
     try:
-        rds.start_db_instance(DBInstanceIdentifier=db_id)
-        print(f"Successfully started RDS instance: {db_id}")
+        ec2.stop_instances(InstanceIds=[instance_id])
+        print(f"Successfully stopped EC2 instance: {instance_id}")
     except Exception as e:
-        print(f"Error starting RDS: {e}")
+        print(f"Error stopping EC2: {e}")
         raise
       `),
     });
 
-    // --- Lambda: Stop RDS ---
-    const stopRdsLambda = new lambda.Function(this, "StopRdsLambda", {
-      functionName: "ds-stop-rds",
-      runtime: lambda.Runtime.PYTHON_3_12,
-      handler: "index.handler",
-      role: lambdaRole,
-      timeout: cdk.Duration.seconds(30),
-      environment: {
-        DB_INSTANCE_ID: "ds-dev-db",
-      },
-      code: lambda.Code.fromInline(`
-import boto3
-import os
-
-def handler(event, context):
-    rds = boto3.client('rds', region_name='ap-southeast-2')
-    db_id = os.environ['DB_INSTANCE_ID']
-    try:
-        rds.stop_db_instance(DBInstanceIdentifier=db_id)
-        print(f"Successfully stopped RDS instance: {db_id}")
-    except Exception as e:
-        print(f"Error stopping RDS: {e}")
-        raise
-      `),
-    });
-
-    // --- EventBridge: Start RDS at 8:50 AM UTC every Tuesday ---
-    const startRule = new events.Rule(this, "StartRdsRule", {
-      ruleName: "ds-start-rds-tuesday",
+    // --- EventBridge: Start EC2 at 8:50 AM UTC every Tuesday ---
+    const startRule = new events.Rule(this, "StartInstanceRule", {
+      ruleName: "ds-start-instance-tuesday",
       schedule: events.Schedule.cron({
         minute: "50",
         hour: "8",
         weekDay: "TUE",
       }),
     });
-    startRule.addTarget(new targets.LambdaFunction(startRdsLambda));
+    startRule.addTarget(new targets.LambdaFunction(startInstanceLambda));
 
-    // --- EventBridge: Stop RDS at 9:30 AM UTC every Tuesday ---
-    const stopRule = new events.Rule(this, "StopRdsRule", {
-      ruleName: "ds-stop-rds-tuesday",
+    // --- EventBridge: Stop EC2 at 9:30 AM UTC every Tuesday ---
+    const stopRule = new events.Rule(this, "StopInstanceRule", {
+      ruleName: "ds-stop-instance-tuesday",
       schedule: events.Schedule.cron({
         minute: "30",
         hour: "9",
         weekDay: "TUE",
       }),
     });
-    stopRule.addTarget(new targets.LambdaFunction(stopRdsLambda));
+    stopRule.addTarget(new targets.LambdaFunction(stopInstanceLambda));
 
-    // --- SSM Parameters ---
-    new ssm.StringParameter(this, "DbEndpointParam", {
-      parameterName: "/ds/dev/db-endpoint",
-      stringValue: db.dbInstanceEndpointAddress,
+    // --- SSM Parameters (shared with CodeBuild in shared account) ---
+    new ssm.StringParameter(this, "TargetHostParam", {
+      parameterName: "/ds/dev/target-host",
+      stringValue: instance.instancePrivateIp,
     });
 
-    new ssm.StringParameter(this, "DbPortParam", {
-      parameterName: "/ds/dev/db-port",
-      stringValue: db.dbInstanceEndpointPort,
+    new ssm.StringParameter(this, "TargetPortParam", {
+      parameterName: "/ds/dev/target-port",
+      stringValue: "5432", // simulating RDS port
     });
 
     new ssm.StringParameter(this, "VpcIdParam", {
@@ -196,9 +186,9 @@ def handler(event, context):
 
     // --- Outputs ---
     new cdk.CfnOutput(this, "VpcId", { value: vpc.vpcId });
-    new cdk.CfnOutput(this, "DbEndpoint", {
-      value: db.dbInstanceEndpointAddress,
+    new cdk.CfnOutput(this, "InstanceId", { value: instance.instanceId });
+    new cdk.CfnOutput(this, "InstancePrivateIp", {
+      value: instance.instancePrivateIp,
     });
-    new cdk.CfnOutput(this, "DbInstanceId", { value: "ds-dev-db" });
   }
 }
