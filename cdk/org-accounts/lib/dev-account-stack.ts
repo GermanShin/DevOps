@@ -9,6 +9,7 @@ import { Construct } from "constructs";
 
 export class DevAccountStack extends cdk.Stack {
   public readonly vpcCidr: string = "10.1.0.0/16";
+  public readonly vpc: ec2.Vpc;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -27,6 +28,8 @@ export class DevAccountStack extends cdk.Stack {
       ],
     });
 
+    this.vpc = vpc;
+
     // --- Security Group for EC2 ---
     const instanceSecurityGroup = new ec2.SecurityGroup(
       this,
@@ -38,7 +41,6 @@ export class DevAccountStack extends cdk.Stack {
       }
     );
 
-    // Allow inbound TCP on port 5432 from shared account VPC CIDR only
     instanceSecurityGroup.addIngressRule(
       ec2.Peer.ipv4("10.0.0.0/16"),
       ec2.Port.tcp(5432),
@@ -50,13 +52,32 @@ export class DevAccountStack extends cdk.Stack {
       instanceName: "ds-dev-instance",
       instanceType: ec2.InstanceType.of(
         ec2.InstanceClass.T2,
-        ec2.InstanceSize.MICRO // free tier eligible
+        ec2.InstanceSize.MICRO
       ),
       machineImage: ec2.MachineImage.latestAmazonLinux2(),
       vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       securityGroup: instanceSecurityGroup,
     });
+
+    // --- IAM Role for VPC Peering ---
+    const vpcPeeringRole = new iam.Role(this, "VpcPeeringRole", {
+      roleName: "ds-vpc-peering-role",
+      assumedBy: new iam.AccountPrincipal("890336468788"),
+      description: "Allows shared account to create VPC peering connection",
+    });
+
+    vpcPeeringRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "ec2:AcceptVpcPeeringConnection",
+          "ec2:CreateVpcPeeringConnection",
+          "ec2:DescribeVpcPeeringConnections",
+        ],
+        resources: ["*"],
+      })
+    );
 
     // --- IAM Role for Start/Stop Lambda ---
     const lambdaRole = new iam.Role(this, "InstanceSchedulerRole", {
@@ -116,7 +137,7 @@ def handler(event, context):
     except Exception as e:
         print(f"Error starting EC2: {e}")
         raise
-      `),
+        `),
       }
     );
 
@@ -143,7 +164,7 @@ def handler(event, context):
     except Exception as e:
         print(f"Error stopping EC2: {e}")
         raise
-      `),
+        `),
     });
 
     // --- EventBridge: Start EC2 at 8:50 AM UTC every Tuesday ---
@@ -168,7 +189,7 @@ def handler(event, context):
     });
     stopRule.addTarget(new targets.LambdaFunction(stopInstanceLambda));
 
-    // --- SSM Parameters (shared with CodeBuild in shared account) ---
+    // --- SSM Parameters ---
     new ssm.StringParameter(this, "TargetHostParam", {
       parameterName: "/ds/dev/target-host",
       stringValue: instance.instancePrivateIp,
@@ -176,7 +197,7 @@ def handler(event, context):
 
     new ssm.StringParameter(this, "TargetPortParam", {
       parameterName: "/ds/dev/target-port",
-      stringValue: "5432", // simulating RDS port
+      stringValue: "5432",
     });
 
     new ssm.StringParameter(this, "VpcIdParam", {
@@ -184,11 +205,29 @@ def handler(event, context):
       stringValue: vpc.vpcId,
     });
 
+    // --- Add return routes to shared account VPC ---
+    const subnetRouteTables = [
+      "rtb-031a165c458201efe",
+      "rtb-0151a5a2dff1719f9",
+    ];
+
+    subnetRouteTables.forEach((routeTableId, index) => {
+      new ec2.CfnRoute(this, `RouteToShared${index}`, {
+        routeTableId: routeTableId,
+        destinationCidrBlock: "10.0.0.0/16",
+        vpcPeeringConnectionId: "pcx-0f7a28a6ed40012dd", // ← new peering ID
+      });
+    });
+
     // --- Outputs ---
     new cdk.CfnOutput(this, "VpcId", { value: vpc.vpcId });
     new cdk.CfnOutput(this, "InstanceId", { value: instance.instanceId });
     new cdk.CfnOutput(this, "InstancePrivateIp", {
       value: instance.instancePrivateIp,
+    });
+    new cdk.CfnOutput(this, "VpcPeeringRoleArn", {
+      value: vpcPeeringRole.roleArn,
+      exportName: "DevVpcPeeringRoleArn",
     });
   }
 }
