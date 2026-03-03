@@ -1,5 +1,6 @@
 import * as cdk from "aws-cdk-lib";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
+import * as s3 from "aws-cdk-lib/aws-s3";
 import * as codebuild from "aws-cdk-lib/aws-codebuild";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as events from "aws-cdk-lib/aws-events";
@@ -111,6 +112,18 @@ export class SharedAccountStack extends cdk.Stack {
       })
     );
 
+    // Inside your SharedAccountStack constructor
+    vpc.addGatewayEndpoint("S3GatewayEndpoint", {
+      service: ec2.GatewayVpcEndpointAwsService.S3,
+    });
+
+    // 1. Create a dedicated bucket for logs
+    const logBucket = new s3.Bucket(this, "CodeBuildLogBucket", {
+      removalPolicy: cdk.RemovalPolicy.DESTROY, // Deletes bucket when stack is deleted
+      autoDeleteObjects: true, // Clears files so bucket can be deleted
+      encryption: s3.BucketEncryption.S3_MANAGED,
+    });
+
     // --- CodeBuild Project (Linux, private subnet) ---
     const tcpCheckProject = new codebuild.Project(this, "TcpCheckProject", {
       projectName: "ds-tcp-check",
@@ -123,12 +136,12 @@ export class SharedAccountStack extends cdk.Stack {
       },
       logging: {
         cloudWatch: {
+          enabled: false, // Disable the expensive/blocked one
+        },
+        s3: {
           enabled: true,
-          logGroup: new logs.LogGroup(this, "CodeBuildLogGroup", {
-            logGroupName: "/aws/codebuild/ds-tcp-check",
-            retention: logs.RetentionDays.ONE_WEEK,
-            removalPolicy: cdk.RemovalPolicy.DESTROY,
-          }),
+          bucket: logBucket,
+          prefix: "build-logs", // Organizes logs in the bucket
         },
       },
       buildSpec: codebuild.BuildSpec.fromObject({
