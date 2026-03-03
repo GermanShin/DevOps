@@ -5,6 +5,7 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
 import { Construct } from "constructs";
+import * as logs from "aws-cdk-lib/aws-logs";
 
 interface SharedAccountStackProps extends cdk.StackProps {
   devVpcCidr: string;
@@ -28,7 +29,18 @@ export class SharedAccountStack extends cdk.Stack {
           subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
           cidrMask: 24,
         },
+        {
+          name: "Public",
+          subnetType: ec2.SubnetType.PUBLIC,
+          cidrMask: 24,
+        },
       ],
+    });
+
+    // NEW - ensures CodeBuild gets a public IP
+    vpc.publicSubnets.forEach((subnet) => {
+      const cfnSubnet = subnet.node.defaultChild as ec2.CfnSubnet;
+      cfnSubnet.mapPublicIpOnLaunch = true;
     });
 
     // --- Security Group for CodeBuild ---
@@ -42,6 +54,18 @@ export class SharedAccountStack extends cdk.Stack {
       ec2.Peer.ipv4(props.devVpcCidr),
       ec2.Port.tcp(5432),
       "Allow outbound to dev account target"
+    );
+
+    codeBuildSg.addEgressRule(
+      ec2.Peer.anyIpv4(),
+      ec2.Port.tcp(443),
+      "Allow outbound HTTPS for AWS services and package installs"
+    );
+
+    codeBuildSg.addEgressRule(
+      ec2.Peer.anyIpv4(),
+      ec2.Port.tcp(80),
+      "Allow outbound HTTP for package installs"
     );
 
     // --- IAM Role for CodeBuild (least privilege) ---
@@ -93,19 +117,27 @@ export class SharedAccountStack extends cdk.Stack {
       role: codeBuildRole,
       vpc,
       securityGroups: [codeBuildSg],
-      subnetSelection: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+      subnetSelection: { subnetType: ec2.SubnetType.PUBLIC },
       environment: {
         buildImage: codebuild.LinuxBuildImage.STANDARD_7_0,
+      },
+      logging: {
+        cloudWatch: {
+          enabled: true,
+          logGroup: new logs.LogGroup(this, "CodeBuildLogGroup", {
+            logGroupName: "/aws/codebuild/ds-tcp-check",
+            retention: logs.RetentionDays.ONE_WEEK,
+            removalPolicy: cdk.RemovalPolicy.DESTROY,
+          }),
+        },
       },
       buildSpec: codebuild.BuildSpec.fromObject({
         version: "0.2",
         phases: {
-          build: {
+          install: {
             commands: [
-              "export TARGET_HOST=$(aws ssm get-parameter --name /ds/dev/target-host --query Parameter.Value --output text --region ap-southeast-2)",
-              "export TARGET_PORT=$(aws ssm get-parameter --name /ds/dev/target-port --query Parameter.Value --output text --region ap-southeast-2)",
-              'echo "=== Step 1: TCP Connectivity Check ==="',
-              'nc -zv $TARGET_HOST $TARGET_PORT -w 5 && echo "SUCCESS: TCP connection to $TARGET_HOST:$TARGET_PORT" || (echo "FAILED: TCP connection to $TARGET_HOST:$TARGET_PORT" && exit 1)',
+              "apt-get update -y",
+              "apt-get install -y netcat-openbsd",
             ],
           },
         },
