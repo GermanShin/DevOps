@@ -47,6 +47,13 @@ export class DevAccountStack extends cdk.Stack {
       "Allow TCP from shared account"
     );
 
+    // 2. ADD THIS: Allow the EC2 to reply back to Account 1
+    instanceSecurityGroup.addEgressRule(
+      ec2.Peer.ipv4("10.0.0.0/16"), // Account 1 CIDR
+      ec2.Port.allTcp(),
+      "Allow TCP Outbound response to shared account"
+    );
+
     // --- EC2 Instance (free tier t2.micro) ---
     const instance = new ec2.Instance(this, "DevInstance", {
       instanceName: "ds-dev-instance",
