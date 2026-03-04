@@ -1,219 +1,149 @@
 import * as cdk from "aws-cdk-lib";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
-import * as s3 from "aws-cdk-lib/aws-s3";
-import * as codebuild from "aws-cdk-lib/aws-codebuild";
 import * as iam from "aws-cdk-lib/aws-iam";
-import * as events from "aws-cdk-lib/aws-events";
-import * as targets from "aws-cdk-lib/aws-events-targets";
 import { Construct } from "constructs";
-import * as logs from "aws-cdk-lib/aws-logs";
 
-interface SharedAccountStackProps extends cdk.StackProps {
-  devVpcCidr: string;
-  devAccountId: string;
-  devVpcId: string;
-  devPeeringRoleArn: string;
+export interface SharedStackProps extends cdk.StackProps {
+  sharedVpcCidr: string; // This VPC's CIDR
+  devVpcCidr: string; // Dev account VPC CIDR — used for routing
+  devAccountId: string; // Dev account ID
+  devVpcId: string; // Dev VPC ID        (from DevStack output)
+  peeringRoleArn: string; // Peering role ARN  (from DevStack output)
+  peerRegion: string; // Dev account region
 }
 
-export class SharedAccountStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props: SharedAccountStackProps) {
+/**
+ * Shared Account Stack — Requester side of VPC peering
+ *
+ * Creates:
+ *  - VPC (sharedVpcCidr) with one private isolated subnet
+ *  - VPC Peering Connection to Dev account VPC
+ *  - Route in Shared private subnet -> Dev VPC CIDR via peering
+ *  - t3.nano EC2 (cheapest) accessible via SSM Session Manager
+ *  - 3 SSM VPC Interface Endpoints (no NAT/IGW required)
+ *
+ * Deploy SECOND (after DevStack):
+ *   cdk deploy SharedStack \
+ *     --context devVpcId=<DevStack.VpcId> \
+ *     --context peeringRoleArn=<DevStack.PeeringRoleArn> \
+ *     --profile shared
+ *
+ * Note this output for Step 3:
+ *  - SharedStack.PeeringConnectionId -> --context peeringConnectionId=<value>
+ */
+export class SharedStack extends cdk.Stack {
+  constructor(scope: Construct, id: string, props: SharedStackProps) {
     super(scope, id, props);
 
-    // --- VPC for Shared Account ---
+    // ── VPC ──────────────────────────────────────────────────────────────────
     const vpc = new ec2.Vpc(this, "SharedVpc", {
-      ipAddresses: ec2.IpAddresses.cidr("10.0.0.0/16"),
-      maxAzs: 2,
+      ipAddresses: ec2.IpAddresses.cidr(props.sharedVpcCidr),
+      maxAzs: 1,
       natGateways: 0,
       subnetConfiguration: [
         {
-          name: "Private",
+          cidrMask: 24,
+          name: "private",
           subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
-          cidrMask: 24,
-        },
-        {
-          name: "Public",
-          subnetType: ec2.SubnetType.PUBLIC,
-          cidrMask: 24,
         },
       ],
     });
 
-    // NEW - ensures CodeBuild gets a public IP
-    vpc.publicSubnets.forEach((subnet) => {
-      const cfnSubnet = subnet.node.defaultChild as ec2.CfnSubnet;
-      cfnSubnet.mapPublicIpOnLaunch = true;
-    });
-
-    // --- Security Group for CodeBuild ---
-    const codeBuildSg = new ec2.SecurityGroup(this, "CodeBuildSg", {
+    // ── VPC Endpoints for SSM (replaces NAT + IGW for Session Manager) ────────
+    const endpointSg = new ec2.SecurityGroup(this, "EndpointSg", {
       vpc,
-      description: "Security group for CodeBuild TCP check",
-      allowAllOutbound: false,
+      description: "Allow HTTPS from Shared VPC for SSM interface endpoints",
+      allowAllOutbound: true,
     });
-
-    codeBuildSg.addEgressRule(
-      ec2.Peer.ipv4(props.devVpcCidr),
-      ec2.Port.tcp(5432),
-      "Allow outbound to dev account target"
-    );
-
-    codeBuildSg.addEgressRule(
-      ec2.Peer.anyIpv4(),
+    endpointSg.addIngressRule(
+      ec2.Peer.ipv4(props.sharedVpcCidr),
       ec2.Port.tcp(443),
-      "Allow outbound HTTPS for AWS services and package installs"
+      "HTTPS from Shared VPC"
     );
 
-    codeBuildSg.addEgressRule(
-      ec2.Peer.anyIpv4(),
-      ec2.Port.tcp(80),
-      "Allow outbound HTTP for package installs"
-    );
-
-    // --- IAM Role for CodeBuild (least privilege) ---
-    const codeBuildRole = new iam.Role(this, "CodeBuildRole", {
-      assumedBy: new iam.ServicePrincipal("codebuild.amazonaws.com"),
-      description: "Role for DS TCP check CodeBuild project",
+    vpc.addInterfaceEndpoint("SsmEndpoint", {
+      service: ec2.InterfaceVpcEndpointAwsService.SSM,
+      securityGroups: [endpointSg],
+    });
+    vpc.addInterfaceEndpoint("SsmMessagesEndpoint", {
+      service: ec2.InterfaceVpcEndpointAwsService.SSM_MESSAGES,
+      securityGroups: [endpointSg],
+    });
+    vpc.addInterfaceEndpoint("Ec2MessagesEndpoint", {
+      service: ec2.InterfaceVpcEndpointAwsService.EC2_MESSAGES,
+      securityGroups: [endpointSg],
     });
 
-    codeBuildRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["ssm:GetParameter", "ssm:GetParameters"],
-        resources: [
-          `arn:aws:ssm:ap-southeast-2:${props.devAccountId}:parameter/ds/dev/*`,
-        ],
-      })
-    );
-
-    codeBuildRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents",
-        ],
-        resources: ["*"],
-      })
-    );
-
-    codeBuildRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          "ec2:CreateNetworkInterface",
-          "ec2:DescribeNetworkInterfaces",
-          "ec2:DeleteNetworkInterface",
-          "ec2:DescribeSubnets",
-          "ec2:DescribeSecurityGroups",
-          "ec2:DescribeVpcs",
-        ],
-        resources: ["*"],
-      })
-    );
-
-    // Inside your SharedAccountStack constructor
-    vpc.addGatewayEndpoint("S3GatewayEndpoint", {
-      service: ec2.GatewayVpcEndpointAwsService.S3,
+    // ── VPC Peering Connection (Shared -> Dev) ────────────────────────────────
+    const peering = new ec2.CfnVPCPeeringConnection(this, "VpcPeering", {
+      vpcId: vpc.vpcId,
+      peerVpcId: props.devVpcId,
+      peerOwnerId: props.devAccountId,
+      peerRoleArn: props.peeringRoleArn,
+      peerRegion: props.peerRegion,
+      tags: [{ key: "Name", value: "Shared-to-Dev-Peering" }],
     });
 
-    // 1. Create a dedicated bucket for logs
-    const logBucket = new s3.Bucket(this, "CodeBuildLogBucket", {
-      removalPolicy: cdk.RemovalPolicy.DESTROY, // Deletes bucket when stack is deleted
-      autoDeleteObjects: true, // Clears files so bucket can be deleted
-      encryption: s3.BucketEncryption.S3_MANAGED,
+    // ── Route: Shared private subnet -> Dev VPC CIDR via peering ─────────────
+    new ec2.CfnRoute(this, "RouteToDev", {
+      routeTableId: vpc.isolatedSubnets[0].routeTable.routeTableId,
+      destinationCidrBlock: props.devVpcCidr,
+      vpcPeeringConnectionId: peering.ref,
     });
 
-    // --- CodeBuild Project (Linux, private subnet) ---
-    const tcpCheckProject = new codebuild.Project(this, "TcpCheckProject", {
-      projectName: "ds-tcp-check",
-      role: codeBuildRole,
+    // ── EC2 IAM Role (SSM Session Manager access) ─────────────────────────────
+    const ec2Role = new iam.Role(this, "Ec2InstanceRole", {
+      assumedBy: new iam.ServicePrincipal("ec2.amazonaws.com"),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          "AmazonSSMManagedInstanceCore"
+        ),
+      ],
+    });
+
+    // ── Security Group ────────────────────────────────────────────────────────
+    const sg = new ec2.SecurityGroup(this, "Ec2Sg", {
       vpc,
-      securityGroups: [codeBuildSg],
-      subnetSelection: { subnetType: ec2.SubnetType.PUBLIC },
-      environment: {
-        buildImage: codebuild.LinuxBuildImage.STANDARD_7_0,
-      },
-      logging: {
-        cloudWatch: {
-          enabled: false, // Disable the expensive/blocked one
-        },
-        s3: {
-          enabled: true,
-          bucket: logBucket,
-          prefix: "build-logs", // Organizes logs in the bucket
-        },
-      },
-      buildSpec: codebuild.BuildSpec.fromObject({
-        version: "0.2",
-        phases: {
-          pre_build: {
-            commands: [
-              "echo 'Checking TCP connection to Dev EC2...'",
-              "nc -zv -w5 10.1.0.191 5432",
-            ],
-          },
-        },
-      }),
+      description: "Shared EC2 - test client, all outbound allowed",
+      allowAllOutbound: true,
     });
 
-    // --- EventBridge Rule: Every Tuesday at 9:00 AM UTC ---
-    const scheduledRule = new events.Rule(this, "TuesdaySchedule", {
-      ruleName: "ds-tcp-check-tuesday",
-      schedule: events.Schedule.cron({
-        minute: "0",
-        hour: "9",
-        weekDay: "TUE",
-      }),
+    // ── EC2 Instance — t3.nano (cheapest burstable, no keypair) ──────────────
+    const instance = new ec2.Instance(this, "Ec2Instance", {
+      vpc,
+      instanceType: ec2.InstanceType.of(
+        ec2.InstanceClass.T3,
+        ec2.InstanceSize.NANO
+      ),
+      machineImage: ec2.MachineImage.latestAmazonLinux2023(),
+      securityGroup: sg,
+      role: ec2Role,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+      userDataCausesReplacement: true,
     });
 
-    scheduledRule.addTarget(new targets.CodeBuildProject(tcpCheckProject));
+    // Pre-install nc for the TCP connectivity test
+    instance.addUserData("#!/bin/bash", "yum install -y nc");
 
-    // --- VPC Peering: Initiate from shared account to dev account ---
-    const peeringConnection = new ec2.CfnVPCPeeringConnection(
-      this,
-      "VpcPeeringConnection",
-      {
-        vpcId: vpc.vpcId,
-        peerVpcId: props.devVpcId,
-        peerOwnerId: props.devAccountId,
-        peerRegion: "ap-southeast-2",
-        peerRoleArn: props.devPeeringRoleArn,
-        tags: [{ key: "Name", value: "ds-shared-to-dev-peering" }],
-      }
-    );
-
-    const allSubnets = [...vpc.publicSubnets, ...vpc.privateSubnets];
-
-    // --- Add routes to dev account VPC using explicit route table IDs ---
-    allSubnets.forEach((subnet, index) => {
-      new ec2.CfnRoute(this, `PeeringRouteToDev${index}`, {
-        routeTableId: subnet.routeTable.routeTableId, // Dynamically gets the ID
-        destinationCidrBlock: props.devVpcCidr, // 10.1.0.0/16
-        vpcPeeringConnectionId: peeringConnection.ref, // The pcx-xxxx ID
-      });
-    });
-    // const sharedPrivateRouteTables = [
-    //   "rtb-03564729ca129ef09",
-    //   "rtb-037f48220157a1ce0",
-    // ];
-
-    // sharedPrivateRouteTables.forEach((routeTableId, index) => {
-    //   new ec2.CfnRoute(this, `PeeringRouteToDev${index}`, {
-    //     routeTableId: routeTableId,
-    //     destinationCidrBlock: props.devVpcCidr, // 10.1.0.0/16
-    //     vpcPeeringConnectionId: peeringConnection.ref,
-    //   });
-    // });
-
-    // --- Outputs ---
-    new cdk.CfnOutput(this, "SharedVpcId", { value: vpc.vpcId });
-    new cdk.CfnOutput(this, "CodeBuildProjectName", {
-      value: tcpCheckProject.projectName,
-    });
+    // ── Outputs ───────────────────────────────────────────────────────────────
     new cdk.CfnOutput(this, "PeeringConnectionId", {
-      value: peeringConnection.ref,
-      exportName: "PeeringConnectionId",
+      value: peering.ref,
+      description:
+        "[Step 3] VPC Peering Connection ID -> --context peeringConnectionId=<value>",
+      exportName: "SharedPeeringConnectionId",
+    });
+
+    new cdk.CfnOutput(this, "Ec2InstanceId", {
+      value: instance.instanceId,
+      description:
+        "Shared EC2 Instance ID - connect via SSM Session Manager to run the test",
+      exportName: "SharedEc2InstanceId",
+    });
+
+    new cdk.CfnOutput(this, "Ec2PrivateIp", {
+      value: instance.instancePrivateIp,
+      description: "Shared EC2 private IP",
+      exportName: "SharedEc2PrivateIp",
     });
   }
 }
