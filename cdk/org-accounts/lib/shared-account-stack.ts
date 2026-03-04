@@ -147,10 +147,10 @@ export class SharedAccountStack extends cdk.Stack {
       buildSpec: codebuild.BuildSpec.fromObject({
         version: "0.2",
         phases: {
-          install: {
+          pre_build: {
             commands: [
-              "apt-get update -y",
-              "apt-get install -y netcat-openbsd",
+              "echo 'Checking TCP connection to Dev EC2...'",
+              "nc -zv -w5 10.1.0.191 5432",
             ],
           },
         },
@@ -183,19 +183,28 @@ export class SharedAccountStack extends cdk.Stack {
       }
     );
 
-    // --- Add routes to dev account VPC using explicit route table IDs ---
-    const sharedPrivateRouteTables = [
-      "rtb-03564729ca129ef09",
-      "rtb-037f48220157a1ce0",
-    ];
+    const allSubnets = [...vpc.publicSubnets, ...vpc.privateSubnets];
 
-    sharedPrivateRouteTables.forEach((routeTableId, index) => {
+    // --- Add routes to dev account VPC using explicit route table IDs ---
+    allSubnets.forEach((subnet, index) => {
       new ec2.CfnRoute(this, `PeeringRouteToDev${index}`, {
-        routeTableId: routeTableId,
+        routeTableId: subnet.routeTable.routeTableId, // Dynamically gets the ID
         destinationCidrBlock: props.devVpcCidr, // 10.1.0.0/16
-        vpcPeeringConnectionId: peeringConnection.ref,
+        vpcPeeringConnectionId: peeringConnection.ref, // The pcx-xxxx ID
       });
     });
+    // const sharedPrivateRouteTables = [
+    //   "rtb-03564729ca129ef09",
+    //   "rtb-037f48220157a1ce0",
+    // ];
+
+    // sharedPrivateRouteTables.forEach((routeTableId, index) => {
+    //   new ec2.CfnRoute(this, `PeeringRouteToDev${index}`, {
+    //     routeTableId: routeTableId,
+    //     destinationCidrBlock: props.devVpcCidr, // 10.1.0.0/16
+    //     vpcPeeringConnectionId: peeringConnection.ref,
+    //   });
+    // });
 
     // --- Outputs ---
     new cdk.CfnOutput(this, "SharedVpcId", { value: vpc.vpcId });

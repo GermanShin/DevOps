@@ -21,6 +21,11 @@ export class DevAccountStack extends cdk.Stack {
       natGateways: 0,
       subnetConfiguration: [
         {
+          name: "Public",
+          subnetType: ec2.SubnetType.PUBLIC, // <--- Add this so SSM works!
+          cidrMask: 24,
+        },
+        {
           name: "Private",
           subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
           cidrMask: 24,
@@ -54,6 +59,20 @@ export class DevAccountStack extends cdk.Stack {
       "Allow TCP Outbound response to shared account"
     );
 
+    // 1. Existing rule for the Public SSM API
+    instanceSecurityGroup.addEgressRule(
+      ec2.Peer.anyIpv4(),
+      ec2.Port.tcp(443),
+      "Allow outbound HTTPS for SSM Agent check-in"
+    );
+
+    // 2. NEW: Rule for the internal Metadata Service (Required for IAM Credentials)
+    instanceSecurityGroup.addEgressRule(
+      ec2.Peer.ipv4("169.254.169.254/32"),
+      ec2.Port.tcp(80),
+      "Allow access to internal instance metadata service"
+    );
+
     // --- EC2 Instance (free tier t2.micro) ---
     const instance = new ec2.Instance(this, "DevInstance", {
       instanceName: "ds-dev-instance",
@@ -63,9 +82,15 @@ export class DevAccountStack extends cdk.Stack {
       ),
       machineImage: ec2.MachineImage.latestAmazonLinux2(),
       vpc,
-      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
       securityGroup: instanceSecurityGroup,
+      associatePublicIpAddress: true,
     });
+
+    // Grant the EC2 permission to use Systems Manager (SSM)
+    instance.role.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonSSMManagedInstanceCore")
+    );
 
     // --- IAM Role for VPC Peering ---
     const vpcPeeringRole = new iam.Role(this, "VpcPeeringRole", {
@@ -213,16 +238,29 @@ def handler(event, context):
     });
 
     // --- Add return routes to shared account VPC ---
-    const subnetRouteTables = [
-      "rtb-031a165c458201efe",
-      "rtb-0151a5a2dff1719f9",
-    ];
+    // const subnetRouteTables = [
+    //   "rtb-031a165c458201efe",
+    //   "rtb-0151a5a2dff1719f9",
+    // ];
 
-    subnetRouteTables.forEach((routeTableId, index) => {
+    // subnetRouteTables.forEach((routeTableId, index) => {
+    //   new ec2.CfnRoute(this, `RouteToShared${index}`, {
+    //     routeTableId: routeTableId,
+    //     destinationCidrBlock: "10.0.0.0/16",
+    //     vpcPeeringConnectionId: "pcx-0f7a28a6ed40012dd", // ← new peering ID
+    //   });
+    // });
+
+    // --- Add return routes to shared account VPC dynamically ---
+    // Update this to ensure the Public Subnet knows how to talk back to Account 1
+    const allSubnets = [...vpc.publicSubnets, ...vpc.isolatedSubnets];
+
+    allSubnets.forEach((subnet, index) => {
       new ec2.CfnRoute(this, `RouteToShared${index}`, {
-        routeTableId: routeTableId,
+        // Matches your previous naming
+        routeTableId: subnet.routeTable.routeTableId,
         destinationCidrBlock: "10.0.0.0/16",
-        vpcPeeringConnectionId: "pcx-0f7a28a6ed40012dd", // ← new peering ID
+        vpcPeeringConnectionId: "pcx-0a2fdf87e81afdb74", // Double-check this is the LATEST ID
       });
     });
 

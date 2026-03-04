@@ -21,6 +21,6 @@ new SharedAccountStack(app, "SharedAccountStack", {
   env: ACCOUNTS.shared,
   devVpcCidr: devStack.vpcCidr,
   devAccountId: ACCOUNTS.dev.account,
-  devVpcId: "vpc-023d07c3358c89363",
+  devVpcId: "vpc-09bfe22d111a2fba6",
   devPeeringRoleArn: `arn:aws:iam::${ACCOUNTS.dev.account}:role/ds-vpc-peering-role`,
 });
