@@ -1,36 +1,18 @@
 import * as cdk from "aws-cdk-lib";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as ram from "aws-cdk-lib/aws-ram";
 import { Construct } from "constructs";
 
 export interface SharedStackProps extends cdk.StackProps {
-  sharedVpcCidr: string; // This VPC's CIDR
-  devVpcCidr: string; // Dev account VPC CIDR — used for routing
-  devAccountId: string; // Dev account ID
-  devVpcId: string; // Dev VPC ID        (from DevStack output)
-  peeringRoleArn: string; // Peering role ARN  (from DevStack output)
-  peerRegion: string; // Dev account region
+  sharedVpcCidr: string;
+  devVpcCidr: string;
+  orgVpcCidr: string;
+  devAccountId: string;
+  orgAccountId: string;
+  orgId: string;
 }
 
-/**
- * Shared Account Stack — Requester side of VPC peering
- *
- * Creates:
- *  - VPC (sharedVpcCidr) with one private isolated subnet
- *  - VPC Peering Connection to Dev account VPC
- *  - Route in Shared private subnet -> Dev VPC CIDR via peering
- *  - t3.nano EC2 (cheapest) accessible via SSM Session Manager
- *  - 3 SSM VPC Interface Endpoints (no NAT/IGW required)
- *
- * Deploy SECOND (after DevStack):
- *   cdk deploy SharedStack \
- *     --context devVpcId=<DevStack.VpcId> \
- *     --context peeringRoleArn=<DevStack.PeeringRoleArn> \
- *     --profile shared
- *
- * Note this output for Step 3:
- *  - SharedStack.PeeringConnectionId -> --context peeringConnectionId=<value>
- */
 export class SharedStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: SharedStackProps) {
     super(scope, id, props);
@@ -49,10 +31,10 @@ export class SharedStack extends cdk.Stack {
       ],
     });
 
-    // ── VPC Endpoints for SSM (replaces NAT + IGW for Session Manager) ────────
+    // ── SSM Interface Endpoints (no NAT/IGW required) ─────────────────────────
     const endpointSg = new ec2.SecurityGroup(this, "EndpointSg", {
       vpc,
-      description: "Allow HTTPS from Shared VPC for SSM interface endpoints",
+      description: "Allow HTTPS from Shared VPC for SSM endpoints",
       allowAllOutbound: true,
     });
     endpointSg.addIngressRule(
@@ -60,7 +42,6 @@ export class SharedStack extends cdk.Stack {
       ec2.Port.tcp(443),
       "HTTPS from Shared VPC"
     );
-
     vpc.addInterfaceEndpoint("SsmEndpoint", {
       service: ec2.InterfaceVpcEndpointAwsService.SSM,
       securityGroups: [endpointSg],
@@ -74,25 +55,57 @@ export class SharedStack extends cdk.Stack {
       securityGroups: [endpointSg],
     });
 
-    // ── VPC Peering Connection (Shared -> Dev) ────────────────────────────────
-    const peering = new ec2.CfnVPCPeeringConnection(this, "VpcPeering", {
-      vpcId: vpc.vpcId,
-      peerVpcId: props.devVpcId,
-      peerOwnerId: props.devAccountId,
-      peerRoleArn: props.peeringRoleArn,
-      peerRegion: props.peerRegion,
-      tags: [{ key: "Name", value: "Shared-to-Dev-Peering" }],
+    // ── Transit Gateway ───────────────────────────────────────────────────────
+    // Owned by Shared account; shared to Dev + Org via RAM
+    const tgw = new ec2.CfnTransitGateway(this, "TransitGateway", {
+      description: "Central TGW - Shared/Dev/Org hub",
+      defaultRouteTableAssociation: "enable", // auto-associate attachments
+      defaultRouteTablePropagation: "enable", // auto-propagate routes
+      autoAcceptSharedAttachments: "enable", // accept cross-account attachments automatically
+      tags: [{ key: "Name", value: "Central-TGW" }],
     });
 
-    // ── Route: Shared private subnet -> Dev VPC CIDR via peering ─────────────
+    // ── Attach Shared VPC to TGW ──────────────────────────────────────────────
+    const sharedAttachment = new ec2.CfnTransitGatewayAttachment(
+      this,
+      "SharedVpcAttachment",
+      {
+        transitGatewayId: tgw.ref,
+        vpcId: vpc.vpcId,
+        subnetIds: vpc.isolatedSubnets.map((s) => s.subnetId),
+        tags: [{ key: "Name", value: "shared-vpc-attachment" }],
+      }
+    );
+
+    // ── Routes: Shared subnet → Dev and Org via TGW ───────────────────────────
+    const routeTable = vpc.isolatedSubnets[0].routeTable.routeTableId;
+
     new ec2.CfnRoute(this, "RouteToDev", {
-      routeTableId: vpc.isolatedSubnets[0].routeTable.routeTableId,
+      routeTableId: routeTable,
       destinationCidrBlock: props.devVpcCidr,
-      vpcPeeringConnectionId: peering.ref,
+      transitGatewayId: tgw.ref,
+    }).addDependency(sharedAttachment); // ← attachment must exist before route
+
+    new ec2.CfnRoute(this, "RouteToOrg", {
+      routeTableId: routeTable,
+      destinationCidrBlock: props.orgVpcCidr,
+      transitGatewayId: tgw.ref,
+    }).addDependency(sharedAttachment);
+
+    // ✅ Fix — auto-accepted, uses org trust we just enabled
+    new ram.CfnResourceShare(this, "TgwRamShare", {
+      name: "central-tgw-share",
+      resourceArns: [
+        `arn:aws:ec2:${this.region}:${this.account}:transit-gateway/${tgw.ref}`,
+      ],
+      principals: [
+        `arn:aws:organizations::${props.orgAccountId}:organization/${props.orgId}`,
+      ],
+      allowExternalPrincipals: false,
     });
 
-    // ── EC2 IAM Role (SSM Session Manager access) ─────────────────────────────
-    const ec2Role = new iam.Role(this, "Ec2InstanceRole", {
+    // ── EC2 (SSM test client) ─────────────────────────────────────────────────
+    const ec2Role = new iam.Role(this, "Ec2Role", {
       assumedBy: new iam.ServicePrincipal("ec2.amazonaws.com"),
       managedPolicies: [
         iam.ManagedPolicy.fromAwsManagedPolicyName(
@@ -100,15 +113,10 @@ export class SharedStack extends cdk.Stack {
         ),
       ],
     });
-
-    // ── Security Group ────────────────────────────────────────────────────────
     const sg = new ec2.SecurityGroup(this, "Ec2Sg", {
       vpc,
-      description: "Shared EC2 - test client, all outbound allowed",
       allowAllOutbound: true,
     });
-
-    // ── EC2 Instance — t3.nano (cheapest burstable, no keypair) ──────────────
     const instance = new ec2.Instance(this, "Ec2Instance", {
       vpc,
       instanceType: ec2.InstanceType.of(
@@ -119,30 +127,21 @@ export class SharedStack extends cdk.Stack {
       securityGroup: sg,
       role: ec2Role,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
-      userDataCausesReplacement: true,
     });
-
-    // Pre-install nc for the TCP connectivity test
     instance.addUserData("#!/bin/bash", "yum install -y nc");
 
     // ── Outputs ───────────────────────────────────────────────────────────────
-    new cdk.CfnOutput(this, "PeeringConnectionId", {
-      value: peering.ref,
-      description:
-        "[Step 3] VPC Peering Connection ID -> --context peeringConnectionId=<value>",
-      exportName: "SharedPeeringConnectionId",
+    new cdk.CfnOutput(this, "TransitGatewayId", {
+      value: tgw.ref,
+      description: "[Step 2 & 3] TGW ID -> --context transitGatewayId=<value>",
+      exportName: "CentralTransitGatewayId",
     });
-
     new cdk.CfnOutput(this, "Ec2InstanceId", {
       value: instance.instanceId,
-      description:
-        "Shared EC2 Instance ID - connect via SSM Session Manager to run the test",
       exportName: "SharedEc2InstanceId",
     });
-
     new cdk.CfnOutput(this, "Ec2PrivateIp", {
       value: instance.instancePrivateIp,
-      description: "Shared EC2 private IP",
       exportName: "SharedEc2PrivateIp",
     });
   }

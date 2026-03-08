@@ -1,62 +1,59 @@
 #!/usr/bin/env node
 import * as cdk from "aws-cdk-lib";
-import { OrgAccountsStack } from "../lib/org-accounts-stack";
-import { DevStack } from "../lib/dev-account-stack";
 import { SharedStack } from "../lib/shared-account-stack";
-import { DevRoutesStack } from "../lib//dev-account-routes-stack";
+//import { DevStack } from "../lib/dev-account-stack";
+//import { OrgAccountsStack } from "../lib/org-account-stack";
 
 const app = new cdk.App();
 
-new OrgAccountsStack(app, "OrgAccountsStack", {});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CONFIGURATION — fill these in before deploying
-// ─────────────────────────────────────────────────────────────────────────────
 const config = {
-  sharedAccountId: "890336468788", // Shared account ID (requester / test client)
-  devAccountId: "409749468395", // Dev account ID    (accepter / test listener)
-  region: "ap-southeast-2", // Deploy region (both accounts)
+  sharedAccountId: "890336468788",
+  devAccountId: "409749468395",
+  orgAccountId: "484907527321", // ← fill in
+  region: "ap-southeast-2",
 
-  sharedVpcCidr: "10.1.0.0/16", // Shared account VPC CIDR — must NOT overlap devVpcCidr
-  devVpcCidr: "10.2.0.0/16", // Dev account VPC CIDR    — must NOT overlap sharedVpcCidr
+  sharedVpcCidr: "10.1.0.0/16",
+  devVpcCidr: "10.2.0.0/16",
+  orgVpcCidr: "10.3.0.0/16", // ← must not overlap
+  orgId: "o-zj6n8y1bhd",
 };
-// ─────────────────────────────────────────────────────────────────────────────
 
-// ── STEP 1: Deploy this first ─────────────────────────────────────────────────
-// cdk deploy DevStack --profile dev
-new DevStack(app, "DevStack", {
-  env: { account: config.devAccountId, region: config.region },
-  devVpcCidr: config.devVpcCidr,
-  sharedVpcCidr: config.sharedVpcCidr, // Allow inbound TCP 5432 from Shared account
-  sharedAccountId: config.sharedAccountId,
-});
-
-// ── STEP 2: Deploy after DevStack outputs are known ───────────────────────────
-// Fill in devVpcId & peeringRoleArn from DevStack outputs, then:
-// cdk deploy SharedStack --profile shared
+// ── STEP 1: Deploy first — creates TGW and RAM share ─────────────────────────
+// cdk deploy SharedStack --profile ds-shared
 new SharedStack(app, "SharedStack", {
   env: { account: config.sharedAccountId, region: config.region },
   sharedVpcCidr: config.sharedVpcCidr,
   devVpcCidr: config.devVpcCidr,
+  orgVpcCidr: config.orgVpcCidr,
   devAccountId: config.devAccountId,
-  // ↓ Fill these from DevStack outputs after Step 1
-  devVpcId: app.node.tryGetContext("devVpcId") ?? "FILL_AFTER_STEP1",
-  peeringRoleArn:
-    app.node.tryGetContext("peeringRoleArn") ?? "FILL_AFTER_STEP1",
-  peerRegion: config.region,
+  orgAccountId: config.orgAccountId,
+  orgId: config.orgId,
 });
 
-// ── STEP 3: Add return route on Dev side using the peering connection ID ──────
-// Fill in devRouteTableId & peeringConnectionId from outputs, then:
-// cdk deploy DevRoutesStack --profile dev
-new DevRoutesStack(app, "DevRoutesStack", {
-  env: { account: config.devAccountId, region: config.region },
-  sharedVpcCidr: config.sharedVpcCidr,
-  // ↓ Fill these from DevStack + SharedStack outputs after Steps 1 & 2
-  devRouteTableId:
-    app.node.tryGetContext("devRouteTableId") ?? "FILL_AFTER_STEP1",
-  peeringConnectionId:
-    app.node.tryGetContext("peeringConnectionId") ?? "FILL_AFTER_STEP2",
-});
+// // ── STEP 2: Deploy after SharedStack outputs are known ────────────────────────
+// // cdk deploy DevStack --profile ds-dev
+// new DevStack(app, "DevStack", {
+//   env: { account: config.devAccountId, region: config.region },
+//   devVpcCidr: config.devVpcCidr,
+//   sharedVpcCidr: config.sharedVpcCidr,
+//   orgVpcCidr: config.orgVpcCidr,
+//   sharedAccountId: config.sharedAccountId,
+//   // ↓ From SharedStack outputs after Step 1
+//   transitGatewayId:
+//     app.node.tryGetContext("transitGatewayId") ?? "FILL_AFTER_STEP1",
+// });
+
+// // ── STEP 3: Deploy after SharedStack outputs are known ────────────────────────
+// // cdk deploy OrgStack --profile ds-org
+// new OrgStack(app, "OrgStack", {
+//   env: { account: config.orgAccountId, region: config.region },
+//   orgVpcCidr: config.orgVpcCidr,
+//   sharedVpcCidr: config.sharedVpcCidr,
+//   devVpcCidr: config.devVpcCidr,
+//   sharedAccountId: config.sharedAccountId,
+//   // ↓ From SharedStack outputs after Step 1
+//   transitGatewayId:
+//     app.node.tryGetContext("transitGatewayId") ?? "FILL_AFTER_STEP1",
+// });
 
 app.synth();
