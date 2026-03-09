@@ -31,6 +31,11 @@ export class SharedStack extends cdk.Stack {
       ],
     });
 
+    // ── S3 Gateway Endpoint (free — allows yum to work without internet) ──────
+    vpc.addGatewayEndpoint("S3Endpoint", {
+      service: ec2.GatewayVpcEndpointAwsService.S3,
+    });
+
     // ── SSM Interface Endpoints (no NAT/IGW required) ─────────────────────────
     const endpointSg = new ec2.SecurityGroup(this, "EndpointSg", {
       vpc,
@@ -117,6 +122,7 @@ export class SharedStack extends cdk.Stack {
       vpc,
       allowAllOutbound: true,
     });
+
     const instance = new ec2.Instance(this, "Ec2Instance", {
       vpc,
       instanceType: ec2.InstanceType.of(
@@ -127,6 +133,7 @@ export class SharedStack extends cdk.Stack {
       securityGroup: sg,
       role: ec2Role,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+      userDataCausesReplacement: true, // ← ADD: forces replacement when userdata changes
     });
     instance.addUserData("#!/bin/bash", "yum install -y nc");
 
