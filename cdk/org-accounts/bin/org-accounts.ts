@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import * as cdk from "aws-cdk-lib";
 import { SharedStack } from "../lib/shared-account-stack";
-//import { DevStack } from "../lib/dev-account-stack";
+import { DevStack } from "../lib/dev-account-stack";
 //import { OrgAccountsStack } from "../lib/org-account-stack";
 
 const app = new cdk.App();
@@ -30,18 +30,17 @@ new SharedStack(app, "SharedStack", {
   orgId: config.orgId,
 });
 
-// // ── STEP 2: Deploy after SharedStack outputs are known ────────────────────────
-// // cdk deploy DevStack --profile ds-dev
-// new DevStack(app, "DevStack", {
-//   env: { account: config.devAccountId, region: config.region },
-//   devVpcCidr: config.devVpcCidr,
-//   sharedVpcCidr: config.sharedVpcCidr,
-//   orgVpcCidr: config.orgVpcCidr,
-//   sharedAccountId: config.sharedAccountId,
-//   // ↓ From SharedStack outputs after Step 1
-//   transitGatewayId:
-//     app.node.tryGetContext("transitGatewayId") ?? "FILL_AFTER_STEP1",
-// });
+// ── STEP 2: Deploy after SharedStack outputs are known ────────────────────────
+// cdk deploy DevStack --profile ds-dev --context transitGatewayId=tgw-0d5f6de01b696b1cd
+new DevStack(app, "DevStack", {
+  env: { account: config.devAccountId, region: config.region },
+  devVpcCidr: config.devVpcCidr,
+  sharedVpcCidr: config.sharedVpcCidr,
+  orgVpcCidr: config.orgVpcCidr,
+  sharedAccountId: config.sharedAccountId,
+  transitGatewayId:
+    app.node.tryGetContext("transitGatewayId") ?? "FILL_AFTER_STEP1",
+});
 
 // // ── STEP 3: Deploy after SharedStack outputs are known ────────────────────────
 // // cdk deploy OrgStack --profile ds-org
