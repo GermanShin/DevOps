@@ -1,20 +1,29 @@
-#!/usr/bin/env node
-import * as cdk from 'aws-cdk-lib';
-import { DsAppInfraStack } from '../lib/ds-app-infra-stack';
+// bin/app.ts
+import "source-map-support/register";
+import * as cdk from "aws-cdk-lib";
+import { EnvConfig, ENV_CONFIG, AppEnv } from "../lib/config";
+import { NetworkStack } from "../lib/stacks/network-stack";
+// import { RdsStack }  from '../lib/rds-stack';   // uncomment in Phase 3
+// import { EcsStack }  from '../lib/ecs-stack';   // uncomment in Phase 4
 
 const app = new cdk.App();
-new DsAppInfraStack(app, 'DsAppInfraStack', {
-  /* If you don't specify 'env', this stack will be environment-agnostic.
-   * Account/Region-dependent features and context lookups will not work,
-   * but a single synthesized template can be deployed anywhere. */
 
-  /* Uncomment the next line to specialize this stack for the AWS Account
-   * and Region that are implied by the current CLI configuration. */
-  // env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
+// Read target environment from CLI context: cdk deploy -c env=dev
+const envName = (app.node.tryGetContext("env") ?? "dev") as AppEnv;
+const cfg = ENV_CONFIG[envName];
 
-  /* Uncomment the next line if you know exactly what Account and Region you
-   * want to deploy the stack to. */
-  // env: { account: '123456789012', region: 'us-east-1' },
+if (!cfg) {
+  // Change this line in app.ts
+  throw new Error(`Unknown environment "${envName}". Valid values: dev`);
+}
 
-  /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
+// Stack IDs are prefixed with the environment name — e.g. "dev-NetworkStack"
+// This means all three environments can exist in the same CDK app without collision
+const prefix = cfg.envName.toUpperCase();
+
+const net = new NetworkStack(app, `${prefix}-NetworkStack`, {
+  env: { account: cfg.account, region: cfg.region },
+  cfg,
 });
+// const rds = new RdsStack(app, `${prefix}-RdsStack`, { env, cfg, vpc: net.vpc, rdsSg: net.rdsSg });
+// const ecs = new EcsStack(app, `${prefix}-EcsStack`, { env, cfg, vpc: net.vpc, ...});
