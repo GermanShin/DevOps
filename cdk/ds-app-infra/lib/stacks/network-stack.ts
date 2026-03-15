@@ -1,6 +1,7 @@
 // lib/network-stack.ts
 import * as cdk from "aws-cdk-lib";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
+import * as iam from "aws-cdk-lib/aws-iam";
 import { Construct } from "constructs";
 import { EnvConfig } from "../config";
 
@@ -10,7 +11,7 @@ interface NetworkStackProps extends cdk.StackProps {
 }
 
 export class NetworkStack extends cdk.Stack {
-  public readonly vpc: ec2.Vpc;
+  // public readonly vpc: ec2.Vpc;
   public readonly albSg: ec2.SecurityGroup;
   public readonly ecsSg: ec2.SecurityGroup;
   public readonly rdsSg: ec2.SecurityGroup;
@@ -20,18 +21,19 @@ export class NetworkStack extends cdk.Stack {
 
     const { cfg } = props;
 
-    this.vpc = new ec2.Vpc(this, "AppVpc", {
-      vpcName: `${cfg.envName}-app-vpc`, // e.g. "dev-app-vpc"
-      ipAddresses: ec2.IpAddresses.cidr("10.0.0.0/16"),
-      maxAzs: 2,
+    const vpc = new ec2.Vpc(this, `${cfg.envName}Vpc`, {
+      vpcName: `${cfg.envName}-vpc`, // e.g. "dev-app-vpc"
+      ipAddresses: ec2.IpAddresses.cidr(cfg.vpcCidr),
+      // maxAzs: 2,
+      maxAzs: 1,
       natGateways: cfg.natGateways, // 1 for dev/uat, 2 for prod
       subnetConfiguration: [
-        { subnetType: ec2.SubnetType.PUBLIC, name: "Public", cidrMask: 24 },
-        {
-          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-          name: "PrivateApp",
-          cidrMask: 24,
-        },
+        // { subnetType: ec2.SubnetType.PUBLIC, name: "Public", cidrMask: 24 },
+        // {
+        //   subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+        //   name: "PrivateApp",
+        //   cidrMask: 24,
+        // },
         {
           subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
           name: "PrivateData",
@@ -40,42 +42,99 @@ export class NetworkStack extends cdk.Stack {
       ],
     });
 
-    this.albSg = new ec2.SecurityGroup(this, "AlbSg", {
-      vpc: this.vpc,
-      securityGroupName: `${cfg.envName}-alb-sg`,
-      description: "ALB - public HTTPS and HTTP redirect",
+    // ── S3 Gateway Endpoint (free — allows yum to work without internet) ──────
+    vpc.addGatewayEndpoint("S3Endpoint", {
+      service: ec2.GatewayVpcEndpointAwsService.S3,
+    });
+
+    // ── SSM Interface Endpoints (no NAT/IGW required) ─────────────────────────
+    const endpointSg = new ec2.SecurityGroup(this, "EndpointSg", {
+      vpc,
+      description: "Allow HTTPS from Shared VPC for SSM endpoints",
       allowAllOutbound: true,
     });
-    this.albSg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), "HTTPS");
-    this.albSg.addIngressRule(
-      ec2.Peer.anyIpv4(),
-      ec2.Port.tcp(80),
-      "HTTP redirect"
+    endpointSg.addIngressRule(
+      ec2.Peer.ipv4(cfg.vpcCidr),
+      ec2.Port.tcp(443),
+      "HTTPS from Shared VPC"
     );
+    vpc.addInterfaceEndpoint("SsmEndpoint", {
+      service: ec2.InterfaceVpcEndpointAwsService.SSM,
+      securityGroups: [endpointSg],
+    });
+    vpc.addInterfaceEndpoint("SsmMessagesEndpoint", {
+      service: ec2.InterfaceVpcEndpointAwsService.SSM_MESSAGES,
+      securityGroups: [endpointSg],
+    });
+    vpc.addInterfaceEndpoint("Ec2MessagesEndpoint", {
+      service: ec2.InterfaceVpcEndpointAwsService.EC2_MESSAGES,
+      securityGroups: [endpointSg],
+    });
 
-    this.ecsSg = new ec2.SecurityGroup(this, "EcsSg", {
-      vpc: this.vpc,
-      securityGroupName: `${cfg.envName}-ecs-sg`,
-      description: "ECS tasks - inbound from ALB only",
+    // ── EC2 (SSM test client) ─────────────────────────────────────────────────
+    const ec2Role = new iam.Role(this, "Ec2Role", {
+      assumedBy: new iam.ServicePrincipal("ec2.amazonaws.com"),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          "AmazonSSMManagedInstanceCore"
+        ),
+      ],
+    });
+    const sg = new ec2.SecurityGroup(this, "Ec2Sg", {
+      vpc,
       allowAllOutbound: true,
     });
-    this.ecsSg.addIngressRule(
-      ec2.Peer.securityGroupId(this.albSg.securityGroupId),
-      ec2.Port.tcp(8080),
-      "From ALB"
-    );
 
-    this.rdsSg = new ec2.SecurityGroup(this, "RdsSg", {
-      vpc: this.vpc,
-      securityGroupName: `${cfg.envName}-rds-sg`,
-      description: "RDS - inbound from ECS only",
-      allowAllOutbound: false,
+    const instance = new ec2.Instance(this, "Ec2Instance", {
+      vpc,
+      instanceType: ec2.InstanceType.of(
+        ec2.InstanceClass.T3,
+        ec2.InstanceSize.NANO
+      ),
+      machineImage: ec2.MachineImage.latestAmazonLinux2023(),
+      securityGroup: sg,
+      role: ec2Role,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+      userDataCausesReplacement: true, // ← ADD: forces replacement when userdata changes
     });
-    this.rdsSg.addIngressRule(
-      ec2.Peer.securityGroupId(this.ecsSg.securityGroupId),
-      ec2.Port.tcp(5432),
-      "PostgreSQL from ECS"
-    );
+    instance.addUserData("#!/bin/bash", "yum install -y nc");
+
+    // this.albSg = new ec2.SecurityGroup(this, "AlbSg", {
+    //   vpc: this.vpc,
+    //   securityGroupName: `${cfg.envName}-alb-sg`,
+    //   description: "ALB - public HTTPS and HTTP redirect",
+    //   allowAllOutbound: true,
+    // });
+    // this.albSg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), "HTTPS");
+    // this.albSg.addIngressRule(
+    //   ec2.Peer.anyIpv4(),
+    //   ec2.Port.tcp(80),
+    //   "HTTP redirect"
+    // );
+
+    // this.ecsSg = new ec2.SecurityGroup(this, "EcsSg", {
+    //   vpc: this.vpc,
+    //   securityGroupName: `${cfg.envName}-ecs-sg`,
+    //   description: "ECS tasks - inbound from ALB only",
+    //   allowAllOutbound: true,
+    // });
+    // this.ecsSg.addIngressRule(
+    //   ec2.Peer.securityGroupId(this.albSg.securityGroupId),
+    //   ec2.Port.tcp(8080),
+    //   "From ALB"
+    // );
+
+    // this.rdsSg = new ec2.SecurityGroup(this, "RdsSg", {
+    //   vpc: this.vpc,
+    //   securityGroupName: `${cfg.envName}-rds-sg`,
+    //   description: "RDS - inbound from ECS only",
+    //   allowAllOutbound: false,
+    // });
+    // this.rdsSg.addIngressRule(
+    //   ec2.Peer.securityGroupId(this.ecsSg.securityGroupId),
+    //   ec2.Port.tcp(5432),
+    //   "PostgreSQL from ECS"
+    // );
 
     // Tags applied to every resource in the stack
     cdk.Tags.of(this).add("Environment", cfg.envName);

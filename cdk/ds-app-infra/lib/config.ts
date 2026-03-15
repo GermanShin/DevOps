@@ -1,6 +1,6 @@
 // lib/config.ts
 
-export type AppEnv = "dev";
+export type AppEnv = "dev" | "shared";
 
 export interface EnvConfig {
   envName: AppEnv;
@@ -12,9 +12,22 @@ export interface EnvConfig {
   rdsMultiAz: boolean;
   ecsMinTasks: number;
   ecsMaxTasks: number;
+  vpcCidr: string;
 }
 
 export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
+  shared: {
+    envName: "shared",
+    account: "890336468788", // ds-shared account ID
+    region: "ap-southeast-2",
+    profile: "ds-shared",
+    natGateways: 0,
+    rdsInstanceClass: "db.t4g.micro",
+    rdsMultiAz: false, // save cost in dev
+    ecsMinTasks: 1,
+    ecsMaxTasks: 4,
+    vpcCidr: "10.0.0.0/16",
+  },
   dev: {
     envName: "dev",
     account: "409749468395", // ds-dev account ID
@@ -25,6 +38,7 @@ export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
     rdsMultiAz: false, // save cost in dev
     ecsMinTasks: 1,
     ecsMaxTasks: 4,
+    vpcCidr: "10.1.0.0/16",
   },
   //   ,
   //   uat: {
