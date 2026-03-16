@@ -1,9 +1,14 @@
-// lib/config.ts
+const vpcCidrConfig = {
+  shared: "10.0.0.0/16",
+  dev: "10.1.0.0/16",
+};
 
 export type AppEnv = "dev" | "shared";
 
 export interface EnvConfig {
   envName: AppEnv;
+  orgId: string;
+  orgAccountId: string;
   account: string; // AWS account ID for this environment
   region: string;
   profile: string; // SSO profile name
@@ -13,11 +18,15 @@ export interface EnvConfig {
   ecsMinTasks: number;
   ecsMaxTasks: number;
   vpcCidr: string;
+  tgwConfig: { sharedVpcCidr: string; devVpcCidr: string };
+  transitGatewayId: string;
 }
 
 export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
   shared: {
     envName: "shared",
+    orgId: "o-zj6n8y1bhd",
+    orgAccountId: "484907527321",
     account: "890336468788", // ds-shared account ID
     region: "ap-southeast-2",
     profile: "ds-shared",
@@ -26,19 +35,25 @@ export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
     rdsMultiAz: false, // save cost in dev
     ecsMinTasks: 1,
     ecsMaxTasks: 4,
-    vpcCidr: "10.0.0.0/16",
+    vpcCidr: vpcCidrConfig.shared,
+    tgwConfig: { sharedVpcCidr: "", devVpcCidr: vpcCidrConfig.dev },
+    transitGatewayId: "",
   },
   dev: {
     envName: "dev",
+    orgId: "",
+    orgAccountId: "",
     account: "409749468395", // ds-dev account ID
     region: "ap-southeast-2",
     profile: "ds-dev",
-    natGateways: 1,
+    natGateways: 0,
     rdsInstanceClass: "db.t4g.micro",
     rdsMultiAz: false, // save cost in dev
     ecsMinTasks: 1,
     ecsMaxTasks: 4,
-    vpcCidr: "10.1.0.0/16",
+    vpcCidr: vpcCidrConfig.dev,
+    tgwConfig: { sharedVpcCidr: vpcCidrConfig.shared, devVpcCidr: "" },
+    transitGatewayId: "tgw-0efbf5d8ea009ddd0",
   },
   //   ,
   //   uat: {

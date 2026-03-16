@@ -2,6 +2,7 @@
 import * as cdk from "aws-cdk-lib";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as ram from "aws-cdk-lib/aws-ram";
 import { Construct } from "constructs";
 import { EnvConfig } from "../config";
 
@@ -97,7 +98,6 @@ export class NetworkStack extends cdk.Stack {
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       userDataCausesReplacement: true, // ← ADD: forces replacement when userdata changes
     });
-    instance.addUserData("#!/bin/bash", "yum install -y nc");
 
     // this.albSg = new ec2.SecurityGroup(this, "AlbSg", {
     //   vpc: this.vpc,
@@ -135,6 +135,90 @@ export class NetworkStack extends cdk.Stack {
     //   ec2.Port.tcp(5432),
     //   "PostgreSQL from ECS"
     // );
+
+    if (cfg.envName === "shared") {
+      instance.addUserData("#!/bin/bash", "yum install -y nc");
+
+      // ── Transit Gateway ───────────────────────────────────────────────────────
+      // Owned by Shared account; shared to Dev + Org via RAM
+      const tgw = new ec2.CfnTransitGateway(this, "TransitGateway", {
+        description: "Central TGW - Shared/Dev/Org hub",
+        defaultRouteTableAssociation: "enable", // auto-associate attachments
+        defaultRouteTablePropagation: "enable", // auto-propagate routes
+        autoAcceptSharedAttachments: "enable", // accept cross-account attachments automatically
+        tags: [{ key: "Name", value: "Central-TGW" }],
+      });
+      // ── Attach Shared VPC to TGW ──────────────────────────────────────────────
+      const sharedAttachment = new ec2.CfnTransitGatewayAttachment(
+        this,
+        "SharedVpcAttachment",
+        {
+          transitGatewayId: tgw.ref,
+          vpcId: vpc.vpcId,
+          subnetIds: vpc.isolatedSubnets.map((s) => s.subnetId),
+          tags: [{ key: "Name", value: "shared-vpc-attachment" }],
+        }
+      );
+
+      // ── Routes: Shared subnet → Dev and Org via TGW ───────────────────────────
+      const routeTable = vpc.isolatedSubnets[0].routeTable.routeTableId;
+
+      new ec2.CfnRoute(this, "RouteToDev", {
+        routeTableId: routeTable,
+        destinationCidrBlock: cfg.tgwConfig.devVpcCidr,
+        transitGatewayId: tgw.ref,
+      }).addDependency(sharedAttachment); // ← attachment must exist before route
+
+      new ram.CfnResourceShare(this, "TgwRamShare", {
+        name: "central-tgw-share",
+        resourceArns: [
+          `arn:aws:ec2:${this.region}:${this.account}:transit-gateway/${tgw.ref}`,
+        ],
+        principals: [
+          `arn:aws:organizations::${cfg.orgAccountId}:organization/${cfg.orgId}`,
+        ],
+        allowExternalPrincipals: false,
+      });
+    } else if (cfg.envName === "dev") {
+      instance.addUserData(
+        "#!/bin/bash",
+        "yum install -y nc",
+        "cat > /usr/local/bin/listen5432.sh << 'EOF'",
+        "#!/bin/bash",
+        "while true; do nc -lk 5432; done",
+        "EOF",
+        "chmod +x /usr/local/bin/listen5432.sh",
+        "nohup /usr/local/bin/listen5432.sh &>/var/log/listen5432.log &"
+      );
+
+      // ── Attach Dev VPC to the shared TGW ─────────────────────────────────────
+      // RAM share is auto-accepted via org-level sharing set up in Step 0
+      const attachment = new ec2.CfnTransitGatewayAttachment(
+        this,
+        "DevVpcAttachment",
+        {
+          transitGatewayId: cfg.transitGatewayId,
+          vpcId: vpc.vpcId,
+          subnetIds: vpc.isolatedSubnets.map((s) => s.subnetId),
+          tags: [{ key: "Name", value: "dev-vpc-attachment" }],
+        }
+      );
+
+      // ── Routes: Dev subnet → Shared and Org via TGW ───────────────────────────
+      const routeTable = vpc.isolatedSubnets[0].routeTable.routeTableId;
+
+      new ec2.CfnRoute(this, "RouteToShared", {
+        routeTableId: routeTable,
+        destinationCidrBlock: cfg.tgwConfig.sharedVpcCidr,
+        transitGatewayId: cfg.transitGatewayId,
+      }).addDependency(attachment); // ← attachment must exist before route
+
+      sg.addIngressRule(
+        ec2.Peer.ipv4(cfg.tgwConfig.sharedVpcCidr),
+        ec2.Port.tcp(5432),
+        "TCP 5432 from Shared VPC"
+      );
+    }
 
     // Tags applied to every resource in the stack
     cdk.Tags.of(this).add("Environment", cfg.envName);
