@@ -1,9 +1,9 @@
 // bin/app.ts
 import "source-map-support/register";
 import * as cdk from "aws-cdk-lib";
-import { EnvConfig, ENV_CONFIG, AppEnv } from "../lib/config";
+import { ENV_CONFIG, AppEnv } from "../lib/config";
 import { NetworkStack } from "../lib/stacks/network-stack";
-// import { RdsStack }  from '../lib/rds-stack';   // uncomment in Phase 3
+import { RdsStack } from "../lib/stacks/rds-stack"; // uncomment in Phase 3
 // import { EcsStack }  from '../lib/ecs-stack';   // uncomment in Phase 4
 
 const app = new cdk.App();
@@ -25,5 +25,14 @@ const net = new NetworkStack(app, `${prefix}-NetworkStack`, {
   env: { account: cfg.account, region: cfg.region },
   cfg,
 });
-// const rds = new RdsStack(app, `${prefix}-RdsStack`, { env, cfg, vpc: net.vpc, rdsSg: net.rdsSg });
+
+if (cfg.envName !== "shared") {
+  const rds = new RdsStack(app, `${prefix}-RdsStack`, {
+    env: { account: cfg.account, region: cfg.region },
+    cfg,
+    vpc: net.vpc,
+    rdsSg: net.rdsSg,
+  });
+}
+
 // const ecs = new EcsStack(app, `${prefix}-EcsStack`, { env, cfg, vpc: net.vpc, ...});

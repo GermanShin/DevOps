@@ -12,7 +12,7 @@ interface NetworkStackProps extends cdk.StackProps {
 }
 
 export class NetworkStack extends cdk.Stack {
-  // public readonly vpc: ec2.Vpc;
+  public readonly vpc: ec2.Vpc;
   public readonly albSg: ec2.SecurityGroup;
   public readonly ecsSg: ec2.SecurityGroup;
   public readonly rdsSg: ec2.SecurityGroup;
@@ -22,11 +22,11 @@ export class NetworkStack extends cdk.Stack {
 
     const { cfg } = props;
 
-    const vpc = new ec2.Vpc(this, `${cfg.envName}Vpc`, {
+    this.vpc = new ec2.Vpc(this, `${cfg.envName}Vpc`, {
       vpcName: `${cfg.envName}-vpc`, // e.g. "dev-app-vpc"
       ipAddresses: ec2.IpAddresses.cidr(cfg.vpcCidr),
-      // maxAzs: 2,
-      maxAzs: 1,
+      maxAzs: 2,
+      // maxAzs: 1,
       natGateways: cfg.natGateways, // 1 for dev/uat, 2 for prod
       subnetConfiguration: [
         // { subnetType: ec2.SubnetType.PUBLIC, name: "Public", cidrMask: 24 },
@@ -42,6 +42,8 @@ export class NetworkStack extends cdk.Stack {
         },
       ],
     });
+
+    const vpc = this.vpc;
 
     // ── S3 Gateway Endpoint (free — allows yum to work without internet) ──────
     vpc.addGatewayEndpoint("S3Endpoint", {
@@ -99,43 +101,6 @@ export class NetworkStack extends cdk.Stack {
       userDataCausesReplacement: true, // ← ADD: forces replacement when userdata changes
     });
 
-    // this.albSg = new ec2.SecurityGroup(this, "AlbSg", {
-    //   vpc: this.vpc,
-    //   securityGroupName: `${cfg.envName}-alb-sg`,
-    //   description: "ALB - public HTTPS and HTTP redirect",
-    //   allowAllOutbound: true,
-    // });
-    // this.albSg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), "HTTPS");
-    // this.albSg.addIngressRule(
-    //   ec2.Peer.anyIpv4(),
-    //   ec2.Port.tcp(80),
-    //   "HTTP redirect"
-    // );
-
-    // this.ecsSg = new ec2.SecurityGroup(this, "EcsSg", {
-    //   vpc: this.vpc,
-    //   securityGroupName: `${cfg.envName}-ecs-sg`,
-    //   description: "ECS tasks - inbound from ALB only",
-    //   allowAllOutbound: true,
-    // });
-    // this.ecsSg.addIngressRule(
-    //   ec2.Peer.securityGroupId(this.albSg.securityGroupId),
-    //   ec2.Port.tcp(8080),
-    //   "From ALB"
-    // );
-
-    // this.rdsSg = new ec2.SecurityGroup(this, "RdsSg", {
-    //   vpc: this.vpc,
-    //   securityGroupName: `${cfg.envName}-rds-sg`,
-    //   description: "RDS - inbound from ECS only",
-    //   allowAllOutbound: false,
-    // });
-    // this.rdsSg.addIngressRule(
-    //   ec2.Peer.securityGroupId(this.ecsSg.securityGroupId),
-    //   ec2.Port.tcp(5432),
-    //   "PostgreSQL from ECS"
-    // );
-
     if (cfg.envName === "shared") {
       instance.addUserData("#!/bin/bash", "yum install -y nc");
 
@@ -154,7 +119,7 @@ export class NetworkStack extends cdk.Stack {
         "SharedVpcAttachment",
         {
           transitGatewayId: tgw.ref,
-          vpcId: vpc.vpcId,
+          vpcId: this.vpc.vpcId,
           subnetIds: vpc.isolatedSubnets.map((s) => s.subnetId),
           tags: [{ key: "Name", value: "shared-vpc-attachment" }],
         }
@@ -183,12 +148,12 @@ export class NetworkStack extends cdk.Stack {
       instance.addUserData(
         "#!/bin/bash",
         "yum install -y nc",
-        "cat > /usr/local/bin/listen5432.sh << 'EOF'",
+        "cat > /usr/local/bin/listen5431.sh << 'EOF'",
         "#!/bin/bash",
-        "while true; do nc -lk 5432; done",
+        "while true; do nc -lk 5431; done",
         "EOF",
-        "chmod +x /usr/local/bin/listen5432.sh",
-        "nohup /usr/local/bin/listen5432.sh &>/var/log/listen5432.log &"
+        "chmod +x /usr/local/bin/listen5431.sh",
+        "nohup /usr/local/bin/listen5431.sh &>/var/log/listen5431.log &"
       );
 
       // ── Attach Dev VPC to the shared TGW ─────────────────────────────────────
@@ -204,7 +169,7 @@ export class NetworkStack extends cdk.Stack {
         }
       );
 
-      // ── Routes: Dev subnet → Shared and Org via TGW ───────────────────────────
+      // // ── Routes: Dev subnet → Shared and Org via TGW ───────────────────────────
       const routeTable = vpc.isolatedSubnets[0].routeTable.routeTableId;
 
       new ec2.CfnRoute(this, "RouteToShared", {
@@ -215,8 +180,53 @@ export class NetworkStack extends cdk.Stack {
 
       sg.addIngressRule(
         ec2.Peer.ipv4(cfg.tgwConfig.sharedVpcCidr),
+        ec2.Port.tcp(5431),
+        "PostgreSQL from Shared VPC"
+      );
+
+      this.albSg = new ec2.SecurityGroup(this, "AlbSg", {
+        vpc: this.vpc,
+        securityGroupName: `${cfg.envName}-alb-sg`,
+        description: "ALB - public HTTPS and HTTP redirect",
+        allowAllOutbound: true,
+      });
+      this.albSg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), "HTTPS");
+      this.albSg.addIngressRule(
+        ec2.Peer.anyIpv4(),
+        ec2.Port.tcp(80),
+        "HTTP redirect"
+      );
+
+      this.ecsSg = new ec2.SecurityGroup(this, "EcsSg", {
+        vpc: vpc,
+        securityGroupName: `${cfg.envName}-ecs-sg`,
+        description: "ECS tasks - inbound from ALB only",
+        allowAllOutbound: true,
+      });
+
+      this.ecsSg.addIngressRule(
+        ec2.Peer.securityGroupId(this.albSg.securityGroupId),
+        ec2.Port.tcp(8080),
+        "From ALB"
+      );
+
+      this.rdsSg = new ec2.SecurityGroup(this, "RdsSg", {
+        vpc: vpc,
+        securityGroupName: `${cfg.envName}-rds-sg`,
+        description: "RDS - inbound from ECS only",
+        allowAllOutbound: false,
+      });
+
+      this.rdsSg.addIngressRule(
+        ec2.Peer.securityGroupId(this.ecsSg.securityGroupId),
         ec2.Port.tcp(5432),
-        "TCP 5432 from Shared VPC"
+        "PostgreSQL from ECS"
+      );
+
+      this.rdsSg.addIngressRule(
+        ec2.Peer.ipv4(cfg.tgwConfig.sharedVpcCidr),
+        ec2.Port.tcp(5432),
+        "PostgreSQL from Shared VPC"
       );
     }
 
