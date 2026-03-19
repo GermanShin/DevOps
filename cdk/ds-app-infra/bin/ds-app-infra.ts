@@ -1,38 +1,60 @@
-// bin/app.ts
 import "source-map-support/register";
 import * as cdk from "aws-cdk-lib";
 import { ENV_CONFIG, AppEnv } from "../lib/config";
 import { NetworkStack } from "../lib/stacks/network-stack";
-import { RdsStack } from "../lib/stacks/rds-stack"; // uncomment in Phase 3
-// import { EcsStack }  from '../lib/ecs-stack';   // uncomment in Phase 4
+import { RdsStack } from "../lib/stacks/rds-stack";
+import { EcsStack } from "../lib/stacks/ecs-stack";
 
 const app = new cdk.App();
-
-// Read target environment from CLI context: cdk deploy -c env=dev
 const envName = (app.node.tryGetContext("env") ?? "dev") as AppEnv;
 const cfg = ENV_CONFIG[envName];
 
 if (!cfg) {
-  // Change this line in app.ts
-  throw new Error(`Unknown environment "${envName}". Valid values: dev`);
+  throw new Error(
+    `Unknown environment "${envName}". Valid values: dev | shared | prod`
+  );
 }
 
-// Stack IDs are prefixed with the environment name — e.g. "dev-NetworkStack"
-// This means all three environments can exist in the same CDK app without collision
 const prefix = cfg.envName.toUpperCase();
+const env = { account: cfg.account, region: cfg.region };
 
-const net = new NetworkStack(app, `${prefix}-NetworkStack`, {
-  env: { account: cfg.account, region: cfg.region },
-  cfg,
-});
+// ── Network Stack — always deployed first ──────────────────────────
+const net = new NetworkStack(app, `${prefix}-NetworkStack`, { env, cfg });
 
+// ── Guard — SGs only exist for non-shared environments ────────────
+if (cfg.envName !== "shared" && (!net.albSg || !net.ecsSg || !net.rdsSg)) {
+  throw new Error(
+    `Security groups not initialised for env: ${cfg.envName}. ` +
+      `Check NetworkStack conditional logic.`
+  );
+}
+
+// ── Non-shared environments only ──────────────────────────────────
 if (cfg.envName !== "shared") {
-  const rds = new RdsStack(app, `${prefix}-RdsStack`, {
-    env: { account: cfg.account, region: cfg.region },
+  // ── RDS Stack — optional during ECS testing ─────────────────────
+  // Deploy with RDS:      cdk deploy -c env=dev -c withRds=true  --profile ds-dev
+  // Deploy without RDS:   cdk deploy -c env=dev -c withRds=false --profile ds-dev
+  const withRds = app.node.tryGetContext("withRds") !== "false";
+
+  let _rdsStack: RdsStack | undefined;
+  if (withRds) {
+    _rdsStack = new RdsStack(app, `${prefix}-RdsStack`, {
+      env,
+      cfg,
+      vpc: net.vpc,
+      rdsSg: net.rdsSg,
+    });
+  }
+
+  // ── ECS Stack ────────────────────────────────────────────────────
+  const _ecsStack = new EcsStack(app, `${prefix}-EcsStack`, {
+    env,
     cfg,
     vpc: net.vpc,
-    rdsSg: net.rdsSg,
+    albSg: net.albSg,
+    ecsSg: net.ecsSg,
+    // Wire in DB after ECS is verified and RDS is deployed:
+    // db:       rdsStack?.db,
+    // dbSecret: rdsStack?.dbSecret,
   });
 }
-
-// const ecs = new EcsStack(app, `${prefix}-EcsStack`, { env, cfg, vpc: net.vpc, ...});

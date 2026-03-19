@@ -1,7 +1,5 @@
-// lib/network-stack.ts
 import * as cdk from "aws-cdk-lib";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
-import * as iam from "aws-cdk-lib/aws-iam";
 import * as ram from "aws-cdk-lib/aws-ram";
 import { Construct } from "constructs";
 import { EnvConfig } from "../config";
@@ -23,18 +21,17 @@ export class NetworkStack extends cdk.Stack {
     const { cfg } = props;
 
     this.vpc = new ec2.Vpc(this, `${cfg.envName}Vpc`, {
-      vpcName: `${cfg.envName}-vpc`, // e.g. "dev-app-vpc"
+      vpcName: `${cfg.envName}-vpc`,
       ipAddresses: ec2.IpAddresses.cidr(cfg.vpcCidr),
-      maxAzs: 2,
-      // maxAzs: 1,
+      maxAzs: cfg.maxAzs,
       natGateways: cfg.natGateways, // 1 for dev/uat, 2 for prod
       subnetConfiguration: [
-        // { subnetType: ec2.SubnetType.PUBLIC, name: "Public", cidrMask: 24 },
-        // {
-        //   subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-        //   name: "PrivateApp",
-        //   cidrMask: 24,
-        // },
+        { subnetType: ec2.SubnetType.PUBLIC, name: "Public", cidrMask: 24 },
+        {
+          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+          name: "PrivateApp",
+          cidrMask: 24,
+        },
         {
           subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
           name: "PrivateData",
@@ -45,65 +42,7 @@ export class NetworkStack extends cdk.Stack {
 
     const vpc = this.vpc;
 
-    // ── S3 Gateway Endpoint (free — allows yum to work without internet) ──────
-    vpc.addGatewayEndpoint("S3Endpoint", {
-      service: ec2.GatewayVpcEndpointAwsService.S3,
-    });
-
-    // ── SSM Interface Endpoints (no NAT/IGW required) ─────────────────────────
-    const endpointSg = new ec2.SecurityGroup(this, "EndpointSg", {
-      vpc,
-      description: "Allow HTTPS from Shared VPC for SSM endpoints",
-      allowAllOutbound: true,
-    });
-    endpointSg.addIngressRule(
-      ec2.Peer.ipv4(cfg.vpcCidr),
-      ec2.Port.tcp(443),
-      "HTTPS from Shared VPC"
-    );
-    vpc.addInterfaceEndpoint("SsmEndpoint", {
-      service: ec2.InterfaceVpcEndpointAwsService.SSM,
-      securityGroups: [endpointSg],
-    });
-    vpc.addInterfaceEndpoint("SsmMessagesEndpoint", {
-      service: ec2.InterfaceVpcEndpointAwsService.SSM_MESSAGES,
-      securityGroups: [endpointSg],
-    });
-    vpc.addInterfaceEndpoint("Ec2MessagesEndpoint", {
-      service: ec2.InterfaceVpcEndpointAwsService.EC2_MESSAGES,
-      securityGroups: [endpointSg],
-    });
-
-    // ── EC2 (SSM test client) ─────────────────────────────────────────────────
-    const ec2Role = new iam.Role(this, "Ec2Role", {
-      assumedBy: new iam.ServicePrincipal("ec2.amazonaws.com"),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName(
-          "AmazonSSMManagedInstanceCore"
-        ),
-      ],
-    });
-    const sg = new ec2.SecurityGroup(this, "Ec2Sg", {
-      vpc,
-      allowAllOutbound: true,
-    });
-
-    const instance = new ec2.Instance(this, "Ec2Instance", {
-      vpc,
-      instanceType: ec2.InstanceType.of(
-        ec2.InstanceClass.T3,
-        ec2.InstanceSize.NANO
-      ),
-      machineImage: ec2.MachineImage.latestAmazonLinux2023(),
-      securityGroup: sg,
-      role: ec2Role,
-      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
-      userDataCausesReplacement: true, // ← ADD: forces replacement when userdata changes
-    });
-
     if (cfg.envName === "shared") {
-      instance.addUserData("#!/bin/bash", "yum install -y nc");
-
       // ── Transit Gateway ───────────────────────────────────────────────────────
       // Owned by Shared account; shared to Dev + Org via RAM
       const tgw = new ec2.CfnTransitGateway(this, "TransitGateway", {
@@ -113,6 +52,7 @@ export class NetworkStack extends cdk.Stack {
         autoAcceptSharedAttachments: "enable", // accept cross-account attachments automatically
         tags: [{ key: "Name", value: "Central-TGW" }],
       });
+
       // ── Attach Shared VPC to TGW ──────────────────────────────────────────────
       const sharedAttachment = new ec2.CfnTransitGatewayAttachment(
         this,
@@ -145,51 +85,52 @@ export class NetworkStack extends cdk.Stack {
         allowExternalPrincipals: false,
       });
     } else if (cfg.envName === "dev") {
-      instance.addUserData(
-        "#!/bin/bash",
-        "yum install -y nc",
-        "cat > /usr/local/bin/listen5431.sh << 'EOF'",
-        "#!/bin/bash",
-        "while true; do nc -lk 5431; done",
-        "EOF",
-        "chmod +x /usr/local/bin/listen5431.sh",
-        "nohup /usr/local/bin/listen5431.sh &>/var/log/listen5431.log &"
-      );
+      // ── VPC Endpoints ─────────────────────────────────────────────────
+      // Allows ECS tasks in private subnets to reach AWS services
+      // without going through the NAT Gateway
 
-      // ── Attach Dev VPC to the shared TGW ─────────────────────────────────────
-      // RAM share is auto-accepted via org-level sharing set up in Step 0
-      const attachment = new ec2.CfnTransitGatewayAttachment(
-        this,
-        "DevVpcAttachment",
-        {
-          transitGatewayId: cfg.transitGatewayId,
-          vpcId: vpc.vpcId,
-          subnetIds: vpc.isolatedSubnets.map((s) => s.subnetId),
-          tags: [{ key: "Name", value: "dev-vpc-attachment" }],
-        }
-      );
+      // ECR API — for ECS to authenticate with ECR
+      vpc.addInterfaceEndpoint("EcrApiEndpoint", {
+        service: ec2.InterfaceVpcEndpointAwsService.ECR,
+        privateDnsEnabled: true,
+        subnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      });
 
-      // // ── Routes: Dev subnet → Shared and Org via TGW ───────────────────────────
-      const routeTable = vpc.isolatedSubnets[0].routeTable.routeTableId;
+      // ECR Docker — for ECS to pull container images
+      vpc.addInterfaceEndpoint("EcrDkrEndpoint", {
+        service: ec2.InterfaceVpcEndpointAwsService.ECR_DOCKER,
+        privateDnsEnabled: true,
+        subnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      });
 
-      new ec2.CfnRoute(this, "RouteToShared", {
-        routeTableId: routeTable,
-        destinationCidrBlock: cfg.tgwConfig.sharedVpcCidr,
-        transitGatewayId: cfg.transitGatewayId,
-      }).addDependency(attachment); // ← attachment must exist before route
+      // CloudWatch Logs — for the awslogs log driver
+      vpc.addInterfaceEndpoint("CloudWatchLogsEndpoint", {
+        service: ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_LOGS,
+        privateDnsEnabled: true,
+        subnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      });
 
-      sg.addIngressRule(
-        ec2.Peer.ipv4(cfg.tgwConfig.sharedVpcCidr),
-        ec2.Port.tcp(5431),
-        "PostgreSQL from Shared VPC"
-      );
+      // Secrets Manager — for DB credentials at task startup
+      vpc.addInterfaceEndpoint("SecretsManagerEndpoint", {
+        service: ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
+        privateDnsEnabled: true,
+        subnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      });
 
+      // S3 Gateway Endpoint — ECR uses S3 for image layers (free)
+      vpc.addGatewayEndpoint("S3Endpoint", {
+        service: ec2.GatewayVpcEndpointAwsService.S3,
+        subnets: [{ subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS }],
+      });
+
+      // ── Security Groups: ALB, ECS, RDS ───────────────────────────
       this.albSg = new ec2.SecurityGroup(this, "AlbSg", {
         vpc: this.vpc,
         securityGroupName: `${cfg.envName}-alb-sg`,
         description: "ALB - public HTTPS and HTTP redirect",
         allowAllOutbound: true,
       });
+
       this.albSg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), "HTTPS");
       this.albSg.addIngressRule(
         ec2.Peer.anyIpv4(),
@@ -206,7 +147,7 @@ export class NetworkStack extends cdk.Stack {
 
       this.ecsSg.addIngressRule(
         ec2.Peer.securityGroupId(this.albSg.securityGroupId),
-        ec2.Port.tcp(8080),
+        ec2.Port.tcp(cfg.ecsAppPort),
         "From ALB"
       );
 

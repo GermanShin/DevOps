@@ -1,6 +1,7 @@
 const vpcCidrConfig = {
   shared: "10.0.0.0/16",
   dev: "10.1.0.0/16",
+  prod: "10.2.0.0/16",
 };
 
 export type AppEnv = "dev" | "shared" | "prod";
@@ -27,9 +28,13 @@ export interface EnvConfig {
   rdsMaintenanceWindow: string; // UTC "ddd:HH:MM-ddd:HH:MM"
   rdsSnapshotOnDeploy: boolean; // take manual snapshot after provisioning
 
-  // ── ECS ─────────────────────────────────────────────────
+  // ── ECS (Phase 4) ─────────────────────────────────────────────────
   ecsMinTasks: number;
   ecsMaxTasks: number;
+  ecsCpu: number; // 256 for dev
+  ecsMemory: number; // 512 for dev
+  ecsAppPort: number; // Spring Boot port
+
   vpcCidr: string;
   tgwConfig: { sharedVpcCidr: string; devVpcCidr: string };
   transitGatewayId: string;
@@ -56,8 +61,13 @@ export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
     rdsMaintenanceWindow: "sun:18:00-sun:19:00", // UTC = after backup window
     rdsSnapshotOnDeploy: true,
 
-    ecsMinTasks: 1,
-    ecsMaxTasks: 4,
+    // ── ECS ──────────────────────────────────────────────────────────
+    ecsMinTasks: 0,
+    ecsMaxTasks: 0,
+    ecsCpu: 0,
+    ecsMemory: 0,
+    ecsAppPort: 0,
+
     vpcCidr: vpcCidrConfig.shared,
     tgwConfig: { sharedVpcCidr: "", devVpcCidr: vpcCidrConfig.dev },
     transitGatewayId: "",
@@ -69,7 +79,7 @@ export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
     account: "409749468395", // ds-dev account ID
     region: "ap-southeast-2",
     profile: "ds-dev",
-    natGateways: 0,
+    natGateways: 1,
     maxAzs: 2,
     rdsInstanceClass: "t4g.micro",
     rdsPostgresVersion: "16.13",
@@ -81,8 +91,14 @@ export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
     rdsBackupWindow: "17:00-18:00", // UTC = 3am-4am Sydney
     rdsMaintenanceWindow: "sun:18:00-sun:19:00", // UTC = after backup window
     rdsSnapshotOnDeploy: true,
+
+    // ── ECS ──────────────────────────────────────────────────────────
     ecsMinTasks: 1,
     ecsMaxTasks: 4,
+    ecsCpu: 256,
+    ecsMemory: 512,
+    ecsAppPort: 80,
+
     vpcCidr: vpcCidrConfig.dev,
     tgwConfig: { sharedVpcCidr: vpcCidrConfig.shared, devVpcCidr: "" },
     transitGatewayId: "tgw-0beb286f4f4669b30",
@@ -94,7 +110,7 @@ export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
     account: "",
     region: "ap-southeast-2",
     profile: "ds-prod",
-    natGateways: 0,
+    natGateways: 2,
     maxAzs: 2,
     rdsInstanceClass: "t4g.micro",
     rdsPostgresVersion: "16.13",
@@ -106,9 +122,15 @@ export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
     rdsBackupWindow: "17:00-18:00", // UTC = 3am-4am Sydney
     rdsMaintenanceWindow: "sun:18:00-sun:19:00", // UTC = after backup window
     rdsSnapshotOnDeploy: true,
+
+    // ── ECS ──────────────────────────────────────────────────────────
     ecsMinTasks: 1,
     ecsMaxTasks: 4,
-    vpcCidr: vpcCidrConfig.dev,
+    ecsCpu: 256,
+    ecsMemory: 512,
+    ecsAppPort: 80,
+
+    vpcCidr: vpcCidrConfig.prod,
     tgwConfig: { sharedVpcCidr: "", devVpcCidr: "" },
     transitGatewayId: "",
   },

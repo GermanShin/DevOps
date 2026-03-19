@@ -35,7 +35,6 @@ export class RdsStack extends cdk.Stack {
       secretName: `${cfg.envName}/ds-app/db-credentials`,
     });
 
-    // ── RDS PostgreSQL Instance ───────────────────────────────────────
     const pgVersion = rds.PostgresEngineVersion.of(
       cfg.rdsPostgresVersion,
       cfg.rdsPostgresVersion.split(".")[0]
