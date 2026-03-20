@@ -141,12 +141,12 @@ export class EcsStack extends cdk.Stack {
       healthCheck: {
         path: "/actuator/health",
         healthyHttpCodes: "200",
-        interval: cdk.Duration.seconds(30),
+        interval: cdk.Duration.seconds(15),
         timeout: cdk.Duration.seconds(5),
         healthyThresholdCount: 2,
         unhealthyThresholdCount: 3,
       },
-      deregistrationDelay: cdk.Duration.seconds(30),
+      deregistrationDelay: cdk.Duration.seconds(10),
     });
 
     // ── HTTP Listener (port 80) ───────────────────────────────────────

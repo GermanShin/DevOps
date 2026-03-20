@@ -25,7 +25,7 @@ export class CicdStack extends cdk.Stack {
       projectName: `${cfg.envName}-ds-app-build`,
       description: `Build and push Docker image for ${cfg.envName}-ds-app`,
       environment: {
-        buildImage: codebuild.LinuxArmBuildImage.AMAZON_LINUX_2_STANDARD_3_0,
+        buildImage: codebuild.LinuxBuildImage.STANDARD_7_0, // ← AMD64
         privileged: true,
         computeType: codebuild.ComputeType.SMALL,
         environmentVariables: {
@@ -106,7 +106,7 @@ export class CicdStack extends cdk.Stack {
               imageFile: buildOutput.atPath(
                 "app/ds-hello-service/imagedefinitions.json"
               ),
-              deploymentTimeout: cdk.Duration.minutes(10),
+              deploymentTimeout: cdk.Duration.minutes(20),
             }),
           ],
         },
