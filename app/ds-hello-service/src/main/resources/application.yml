@@ -8,14 +8,15 @@ spring:
     password: ${DB_PASSWORD:localpassword}
     driver-class-name: org.postgresql.Driver
     hikari:
-      connection-timeout: 5000    # fail fast if DB unreachable
+      connection-timeout: 5000
       maximum-pool-size: 5
+      # ← add this — don't fail on startup if DB is unavailable
+      initialization-fail-timeout: -1
 
 server:
   port: 8080
   shutdown: graceful
 
-# ALB health check endpoint
 management:
   endpoints:
     web:
@@ -25,6 +26,12 @@ management:
   endpoint:
     health:
       show-details: never
+      # ← add this — exclude DB from health check
+      probes:
+        enabled: true
+  health:
+    db:
+      enabled: false # ← don't fail health check if DB unavailable
   server:
     port: 8080
 

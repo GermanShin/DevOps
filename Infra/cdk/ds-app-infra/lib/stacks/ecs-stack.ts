@@ -16,6 +16,7 @@ interface EcsStackProps extends cdk.StackProps {
   // Optional — wire these in after ECS is verified
   db?: rds.DatabaseInstance;
   dbSecret?: rds.DatabaseSecret;
+  certArn?: string; // ← add this — optional until Phase 6
 }
 
 export class EcsStack extends cdk.Stack {
@@ -149,12 +150,31 @@ export class EcsStack extends cdk.Stack {
       deregistrationDelay: cdk.Duration.seconds(10),
     });
 
-    // ── HTTP Listener (port 80) ───────────────────────────────────────
-    // HTTPS will be added in Phase 6 once ACM certificate is ready
-    this.alb.addListener("HttpListener", {
-      port: 80,
-      defaultTargetGroups: [tg],
-    });
+    // ── HTTP Listener ─────────────────────────────────────────────────
+    if (props.certArn) {
+      // HTTPS available — redirect HTTP to HTTPS
+      this.alb.addListener("HttpListener", {
+        port: 80,
+        defaultAction: elbv2.ListenerAction.redirect({
+          protocol: "HTTPS",
+          port: "443",
+          permanent: true,
+        }),
+      });
+
+      // HTTPS listener with certificate
+      this.alb.addListener("HttpsListener", {
+        port: 443,
+        certificates: [elbv2.ListenerCertificate.fromArn(props.certArn)],
+        defaultTargetGroups: [tg],
+      });
+    } else {
+      // No certificate yet — HTTP forwards directly to target group
+      this.alb.addListener("HttpListener", {
+        port: 80,
+        defaultTargetGroups: [tg],
+      });
+    }
 
     // ── Fargate Service ───────────────────────────────────────────────
     this.service = new ecs.FargateService(this, "Service", {

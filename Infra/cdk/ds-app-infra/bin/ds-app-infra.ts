@@ -5,6 +5,7 @@ import { NetworkStack } from "../lib/stacks/network-stack";
 import { RdsStack } from "../lib/stacks/rds-stack";
 import { EcsStack } from "../lib/stacks/ecs-stack";
 import { CicdStack } from "../lib/stacks/cicd-stack";
+import { DnsStack } from "../lib/stacks/dns-stack";
 
 const app = new cdk.App();
 const envName = (app.node.tryGetContext("env") ?? "dev") as AppEnv;
@@ -65,4 +66,16 @@ if (cfg.envName !== "shared") {
     service: _ecsStack.service,
     repo: _ecsStack.repo,
   });
+
+  // ── DNS Stack — Deploy 1: creates ACM cert + A record ────────────
+  // Deploy 2: uncomment certArn in EcsStack above once cert is ISSUED
+  const _dnsStack = new DnsStack(app, `${prefix}-DnsStack`, {
+    env,
+    cfg,
+    alb: _ecsStack.alb,
+  });
+
+  // Pass cert ARN back to ECS — requires two-step deploy
+  // First deploy: DnsStack creates cert
+  // Second deploy: EcsStack uses cert ARN for HTTPS listener
 }

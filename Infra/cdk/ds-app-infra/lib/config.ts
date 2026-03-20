@@ -18,17 +18,17 @@ export interface EnvConfig {
 
   // ── RDS ─────────────────────────────────────────────────
   rdsInstanceClass: string;
-  rdsPostgresVersion: string; // e.g. "16.3"
+  rdsPostgresVersion: string;
   rdsMultiAz: boolean;
   rdsBackupRetentionDays: number;
-  rdsAllocatedStorage: number; // initial GB
+  rdsAllocatedStorage: number;
   rdsMaxAllocatedStorage: number; // autoscaling ceiling GB
   rdsDatabaseName: string; // initial DB name inside the instance
   rdsBackupWindow: string; // UTC "HH:MM-HH:MM"
   rdsMaintenanceWindow: string; // UTC "ddd:HH:MM-ddd:HH:MM"
   rdsSnapshotOnDeploy: boolean; // take manual snapshot after provisioning
 
-  // ── ECS (Phase 4) ─────────────────────────────────────────────────
+  // ── ECS ─────────────────────────────────────────────────
   ecsMinTasks: number;
   ecsMaxTasks: number;
   ecsCpu: number; // 256 for dev
@@ -39,6 +39,11 @@ export interface EnvConfig {
   githubOwner: string;
   githubRepo: string;
   githubBranch: string;
+
+  // Add to interface
+  hostedZoneId: string;
+  hostedZoneName: string;
+  domainName: string; // the A record — api.dev.ds-shin.com
 
   vpcCidr: string;
   tgwConfig: { sharedVpcCidr: string; devVpcCidr: string };
@@ -78,6 +83,11 @@ export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
     githubRepo: "",
     githubBranch: "",
 
+    // Add to shared block (empty)
+    hostedZoneId: "",
+    hostedZoneName: "",
+    domainName: "",
+
     vpcCidr: vpcCidrConfig.shared,
     tgwConfig: { sharedVpcCidr: "", devVpcCidr: vpcCidrConfig.dev },
     transitGatewayId: "",
@@ -115,6 +125,11 @@ export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
     githubRepo: "DevOps",
     githubBranch: "main",
 
+    // Add to dev block
+    hostedZoneId: "Z03362612XHMJOJC8YK3A",
+    hostedZoneName: "dev.ds-shin.com",
+    domainName: "api.dev.ds-shin.com",
+
     vpcCidr: vpcCidrConfig.dev,
     tgwConfig: { sharedVpcCidr: vpcCidrConfig.shared, devVpcCidr: "" },
     transitGatewayId: "tgw-0beb286f4f4669b30",
@@ -151,6 +166,11 @@ export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
     githubOwner: "GermanShin",
     githubRepo: "DevOps",
     githubBranch: "main",
+
+    // Add to prod block (empty for now)
+    hostedZoneId: "",
+    hostedZoneName: "",
+    domainName: "",
 
     vpcCidr: vpcCidrConfig.prod,
     tgwConfig: { sharedVpcCidr: "", devVpcCidr: "" },
