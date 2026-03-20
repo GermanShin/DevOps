@@ -115,10 +115,10 @@ export class EcsStack extends cdk.Stack {
           "CMD-SHELL",
           "curl -f http://localhost:8080/actuator/health || exit 1",
         ],
-        interval: cdk.Duration.seconds(30),
+        interval: cdk.Duration.seconds(15),
         timeout: cdk.Duration.seconds(5),
         retries: 3,
-        startPeriod: cdk.Duration.seconds(60),
+        startPeriod: cdk.Duration.seconds(90),
       },
     });
 
@@ -165,6 +165,8 @@ export class EcsStack extends cdk.Stack {
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [ecsSg],
       assignPublicIp: false,
+      healthCheckGracePeriod: cdk.Duration.seconds(120),
+      circuitBreaker: { rollback: false },
     });
     this.service.attachToApplicationTargetGroup(tg);
 
