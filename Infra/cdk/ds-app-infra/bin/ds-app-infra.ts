@@ -4,6 +4,7 @@ import { ENV_CONFIG, AppEnv } from "../lib/config";
 import { NetworkStack } from "../lib/stacks/network-stack";
 import { RdsStack } from "../lib/stacks/rds-stack";
 import { EcsStack } from "../lib/stacks/ecs-stack";
+import { CicdStack } from "../lib/stacks/cicd-stack";
 
 const app = new cdk.App();
 const envName = (app.node.tryGetContext("env") ?? "dev") as AppEnv;
@@ -31,9 +32,9 @@ if (cfg.envName !== "shared" && (!net.albSg || !net.ecsSg || !net.rdsSg)) {
 
 // ── Non-shared environments only ──────────────────────────────────
 if (cfg.envName !== "shared") {
-  // ── RDS Stack — optional during ECS testing ─────────────────────
-  // Deploy with RDS:      cdk deploy -c env=dev -c withRds=true  --profile ds-dev
-  // Deploy without RDS:   cdk deploy -c env=dev -c withRds=false --profile ds-dev
+  // ── RDS Stack ────────────────────────────────────────────────────
+  // Deploy with RDS:    cdk deploy -c env=dev -c withRds=true  --profile ds-dev
+  // Deploy without RDS: cdk deploy -c env=dev -c withRds=false --profile ds-dev
   const withRds = app.node.tryGetContext("withRds") !== "false";
 
   let _rdsStack: RdsStack | undefined;
@@ -53,8 +54,15 @@ if (cfg.envName !== "shared") {
     vpc: net.vpc,
     albSg: net.albSg,
     ecsSg: net.ecsSg,
-    // Wire in DB after ECS is verified and RDS is deployed:
-    // db:       rdsStack?.db,
-    // dbSecret: rdsStack?.dbSecret,
+    db: _rdsStack?.db,
+    dbSecret: _rdsStack?.dbSecret,
+  });
+
+  // ── CI/CD Stack ──────────────────────────────────────────────────
+  const _cicdStack = new CicdStack(app, `${prefix}-CicdStack`, {
+    env,
+    cfg,
+    service: _ecsStack.service,
+    repo: _ecsStack.repo,
   });
 }

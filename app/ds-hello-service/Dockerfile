@@ -5,7 +5,7 @@ WORKDIR /app
 
 COPY gradlew .
 COPY gradle/ gradle/
-COPY build.gradle .
+COPY build.gradle.kts .
 COPY settings.gradle .
 
 RUN chmod +x gradlew

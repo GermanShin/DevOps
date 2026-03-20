@@ -94,9 +94,7 @@ export class EcsStack extends cdk.Stack {
     // Will be replaced by your Spring Boot image in Phase 5
     taskDef.addContainer("AppContainer", {
       containerName: `${cfg.envName}-ds-app`,
-      image: ecs.ContainerImage.fromRegistry(
-        "public.ecr.aws/nginx/nginx:stable-alpine"
-      ),
+      image: ecs.ContainerImage.fromEcrRepository(this.repo, "latest"),
       portMappings: [
         {
           containerPort: cfg.ecsAppPort,
@@ -112,13 +110,16 @@ export class EcsStack extends cdk.Stack {
       }),
       // Health check disabled for placeholder image
       // Uncomment in Phase 5 when Spring Boot image is deployed:
-      // healthCheck: {
-      //   command:     ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"],
-      //   interval:    cdk.Duration.seconds(30),
-      //   timeout:     cdk.Duration.seconds(5),
-      //   retries:     3,
-      //   startPeriod: cdk.Duration.seconds(60),
-      // },
+      healthCheck: {
+        command: [
+          "CMD-SHELL",
+          "curl -f http://localhost:8080/actuator/health || exit 1",
+        ],
+        interval: cdk.Duration.seconds(30),
+        timeout: cdk.Duration.seconds(5),
+        retries: 3,
+        startPeriod: cdk.Duration.seconds(60),
+      },
     });
 
     // ── Application Load Balancer ─────────────────────────────────────
@@ -138,7 +139,7 @@ export class EcsStack extends cdk.Stack {
       targetType: elbv2.TargetType.IP,
       targetGroupName: `${cfg.envName}-ds-app-tg`,
       healthCheck: {
-        path: "/",
+        path: "/actuator/health",
         healthyHttpCodes: "200",
         interval: cdk.Duration.seconds(30),
         timeout: cdk.Duration.seconds(5),
