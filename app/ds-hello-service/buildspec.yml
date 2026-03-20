@@ -10,20 +10,21 @@ phases:
       - echo Logging in to Amazon ECR...
       - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_URI
       - IMAGE_TAG=$CODEBUILD_RESOLVED_SOURCE_VERSION
+      - APP_DIR=$CODEBUILD_SRC_DIR/app/ds-hello-service
 
   build:
     commands:
       - echo Running tests...
-      - cd app/ds-hello-service && ./gradlew test --no-daemon
+      - cd $CODEBUILD_SRC_DIR/app/ds-hello-service && ./gradlew test --no-daemon
       - echo Building Docker image...
-      - cd app/ds-hello-service && docker build -t $ECR_URI:$IMAGE_TAG .
+      - cd $CODEBUILD_SRC_DIR/app/ds-hello-service && docker build -t $ECR_URI:$IMAGE_TAG .
       - docker tag $ECR_URI:$IMAGE_TAG $ECR_URI:latest
 
   post_build:
     commands:
       - docker push $ECR_URI:$IMAGE_TAG
       - docker push $ECR_URI:latest
-      - cd app/ds-hello-service && printf '[{"name":"%s","imageUri":"%s"}]' $CONTAINER_NAME $ECR_URI:$IMAGE_TAG > imagedefinitions.json
+      - cd $CODEBUILD_SRC_DIR/app/ds-hello-service && printf '[{"name":"%s","imageUri":"%s"}]' $CONTAINER_NAME $ECR_URI:$IMAGE_TAG > imagedefinitions.json
       - echo Build complete
 
 reports:
