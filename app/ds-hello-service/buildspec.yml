@@ -7,13 +7,15 @@ phases:
 
   pre_build:
     commands:
+      - echo Moving to app directory...
+      - cd app/ds-hello-service
       - echo Logging in to Amazon ECR...
-      - aws ecr get-login-password --region $AWS_DEFAULT_REGION |
-          docker login --username AWS --password-stdin $ECR_URI
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_URI
       - IMAGE_TAG=$CODEBUILD_RESOLVED_SOURCE_VERSION
 
   build:
     commands:
+      - cd app/ds-hello-service
       - echo Running tests...
       - ./gradlew test --no-daemon
       - echo Building Docker image...
@@ -22,6 +24,7 @@ phases:
 
   post_build:
     commands:
+      - cd app/ds-hello-service
       - docker push $ECR_URI:$IMAGE_TAG
       - docker push $ECR_URI:latest
       - printf '[{"name":"%s","imageUri":"%s"}]' $CONTAINER_NAME $ECR_URI:$IMAGE_TAG > imagedefinitions.json
@@ -30,9 +33,9 @@ phases:
 reports:
   test-reports:
     files:
-      - "build/test-results/test/*.xml"
+      - "app/ds-hello-service/build/test-results/test/*.xml"
     file-format: JUNITXML
 
 artifacts:
   files:
-    - imagedefinitions.json
+    - app/ds-hello-service/imagedefinitions.json

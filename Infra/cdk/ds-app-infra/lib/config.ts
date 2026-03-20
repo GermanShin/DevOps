@@ -35,6 +35,11 @@ export interface EnvConfig {
   ecsMemory: number; // 512 for dev
   ecsAppPort: number; // Spring Boot port
 
+  githubConnectionArn: string;
+  githubOwner: string;
+  githubRepo: string;
+  githubBranch: string;
+
   vpcCidr: string;
   tgwConfig: { sharedVpcCidr: string; devVpcCidr: string };
   transitGatewayId: string;
@@ -68,6 +73,11 @@ export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
     ecsMemory: 0,
     ecsAppPort: 0,
 
+    githubConnectionArn: "",
+    githubOwner: "",
+    githubRepo: "",
+    githubBranch: "",
+
     vpcCidr: vpcCidrConfig.shared,
     tgwConfig: { sharedVpcCidr: "", devVpcCidr: vpcCidrConfig.dev },
     transitGatewayId: "",
@@ -97,7 +107,13 @@ export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
     ecsMaxTasks: 4,
     ecsCpu: 256,
     ecsMemory: 512,
-    ecsAppPort: 80,
+    ecsAppPort: 8080,
+
+    githubConnectionArn:
+      "arn:aws:codeconnections:ap-southeast-2:409749468395:connection/0ae70a18-adfe-4072-be3e-41f7f56dc21e",
+    githubOwner: "GermanShin",
+    githubRepo: "DevOps",
+    githubBranch: "main",
 
     vpcCidr: vpcCidrConfig.dev,
     tgwConfig: { sharedVpcCidr: vpcCidrConfig.shared, devVpcCidr: "" },
@@ -128,7 +144,13 @@ export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
     ecsMaxTasks: 4,
     ecsCpu: 256,
     ecsMemory: 512,
-    ecsAppPort: 80,
+    ecsAppPort: 8080,
+
+    githubConnectionArn:
+      "arn:aws:codeconnections:ap-southeast-2:409749468395:connection/0ae70a18-adfe-4072-be3e-41f7f56dc21e",
+    githubOwner: "GermanShin",
+    githubRepo: "DevOps",
+    githubBranch: "main",
 
     vpcCidr: vpcCidrConfig.prod,
     tgwConfig: { sharedVpcCidr: "", devVpcCidr: "" },
