@@ -57,6 +57,7 @@ if (cfg.envName !== "shared") {
     ecsSg: net.ecsSg,
     db: _rdsStack?.db,
     dbSecret: _rdsStack?.dbSecret,
+    certArn: cfg.certArn,
   });
 
   // ── CI/CD Stack ──────────────────────────────────────────────────
@@ -74,8 +75,4 @@ if (cfg.envName !== "shared") {
     cfg,
     alb: _ecsStack.alb,
   });
-
-  // Pass cert ARN back to ECS — requires two-step deploy
-  // First deploy: DnsStack creates cert
-  // Second deploy: EcsStack uses cert ARN for HTTPS listener
 }

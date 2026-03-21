@@ -48,6 +48,7 @@ export interface EnvConfig {
   vpcCidr: string;
   tgwConfig: { sharedVpcCidr: string; devVpcCidr: string };
   transitGatewayId: string;
+  certArn?: string;
 }
 
 export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
@@ -133,6 +134,8 @@ export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
     vpcCidr: vpcCidrConfig.dev,
     tgwConfig: { sharedVpcCidr: vpcCidrConfig.shared, devVpcCidr: "" },
     transitGatewayId: "tgw-0beb286f4f4669b30",
+    certArn:
+      "arn:aws:acm:ap-southeast-2:409749468395:certificate/de4c4c45-43f0-4bcc-bffd-f9eb4a2c12e1",
   },
   prod: {
     envName: "prod",
