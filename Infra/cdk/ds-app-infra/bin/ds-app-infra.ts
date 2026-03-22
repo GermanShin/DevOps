@@ -6,6 +6,7 @@ import { RdsStack } from "../lib/stacks/rds-stack";
 import { EcsStack } from "../lib/stacks/ecs-stack";
 import { CicdStack } from "../lib/stacks/cicd-stack";
 import { DnsStack } from "../lib/stacks/dns-stack";
+import { MonitoringStack } from "../lib/stacks/monitoring-stack";
 
 const app = new cdk.App();
 const envName = (app.node.tryGetContext("env") ?? "dev") as AppEnv;
@@ -75,4 +76,20 @@ if (cfg.envName !== "shared") {
     cfg,
     alb: _ecsStack.alb,
   });
+
+  // ── Monitoring Stack ─────────────────────────────────────────────
+  // Requires RDS — only instantiate when withRds is true
+  if (withRds && _rdsStack) {
+    const _monitoringStack = new MonitoringStack(
+      app,
+      `${prefix}-MonitoringStack`,
+      {
+        env,
+        cfg,
+        service: _ecsStack.service,
+        alb: _ecsStack.alb,
+        db: _rdsStack.db,
+      }
+    );
+  }
 }

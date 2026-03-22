@@ -157,7 +157,7 @@ export class EcsStack extends cdk.Stack {
         port: 80,
         defaultAction: elbv2.ListenerAction.redirect({
           protocol: "HTTPS",
-          port: "443",
+          port: "443", // ← put this back
           permanent: true,
         }),
       });

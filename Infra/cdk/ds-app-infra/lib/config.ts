@@ -49,6 +49,8 @@ export interface EnvConfig {
   tgwConfig: { sharedVpcCidr: string; devVpcCidr: string };
   transitGatewayId: string;
   certArn?: string;
+
+  alertEmail: string;
 }
 
 export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
@@ -92,6 +94,7 @@ export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
     vpcCidr: vpcCidrConfig.shared,
     tgwConfig: { sharedVpcCidr: "", devVpcCidr: vpcCidrConfig.dev },
     transitGatewayId: "",
+    alertEmail: "",
   },
   dev: {
     envName: "dev",
@@ -135,7 +138,8 @@ export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
     tgwConfig: { sharedVpcCidr: vpcCidrConfig.shared, devVpcCidr: "" },
     transitGatewayId: "tgw-0beb286f4f4669b30",
     certArn:
-      "arn:aws:acm:ap-southeast-2:409749468395:certificate/de4c4c45-43f0-4bcc-bffd-f9eb4a2c12e1",
+      "arn:aws:acm:ap-southeast-2:409749468395:certificate/a9c0906e-31ec-4891-8988-1a992b6c419f",
+    alertEmail: "germanshin1217+dev@gmail.com",
   },
   prod: {
     envName: "prod",
@@ -178,5 +182,6 @@ export const ENV_CONFIG: Record<AppEnv, EnvConfig> = {
     vpcCidr: vpcCidrConfig.prod,
     tgwConfig: { sharedVpcCidr: "", devVpcCidr: "" },
     transitGatewayId: "",
+    alertEmail: "",
   },
 };
