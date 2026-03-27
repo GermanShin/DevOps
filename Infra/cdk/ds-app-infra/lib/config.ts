@@ -1,3 +1,30 @@
+// ── Global Stack Props ─────────────────────────────────────────────────
+const parentDomainName = "ds-shin.com";
+const dashboardSub = "allurereport";
+const loginSub = "allurereportlogin";
+const cognitoCustomDomainCertARN =
+  "arn:aws:acm:us-east-1:484907527321:certificate/9599c608-8ee2-4cee-8789-b87c7ba4eee1";
+
+const cloudFrontCertArn =
+  "arn:aws:acm:us-east-1:484907527321:certificate/a5228ff4-b5c2-4d08-b71f-c71f32fd0102";
+
+const dashboardFqdn = `${dashboardSub}.${parentDomainName}`;
+const loginFqdn = `${loginSub}.${parentDomainName}`;
+const cognitoCloudFrontFqdn = "d2qpq62vczftwx.cloudfront.net";
+
+export interface GlobalConfig {
+  parentDomainName: string;
+  dashboardFqdn: string;
+  loginFqdn: string;
+}
+
+export const GLOBAL_CONFIG: GlobalConfig = {
+  parentDomainName: parentDomainName,
+  dashboardFqdn: dashboardFqdn,
+  loginFqdn: loginFqdn,
+};
+
+// ── Environment Stack Props ─────────────────────────────────────────────────
 const vpcCidrConfig = {
   shared: "10.0.0.0/16",
   dev: "10.1.0.0/16",
