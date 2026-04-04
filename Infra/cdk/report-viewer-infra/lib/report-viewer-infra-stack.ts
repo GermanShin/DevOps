@@ -2,6 +2,8 @@ import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as route53 from "aws-cdk-lib/aws-route53";
 import * as s3 from "aws-cdk-lib/aws-s3";
+import * as acm from "aws-cdk-lib/aws-certificatemanager";
+import * as cognito from "aws-cdk-lib/aws-cognito";
 import { Config } from "./config";
 
 export interface ReportViewerInfraStackProps extends cdk.StackProps {
@@ -14,24 +16,19 @@ export class ReportViewerInfraStack extends cdk.Stack {
   constructor(
     scope: Construct,
     id: string,
-    props: ReportViewerInfraStackProps
+    props: ReportViewerInfraStackProps,
   ) {
     super(scope, id, props);
 
     const { cfg } = props;
 
     // ── Hosted Zone — already exists in ds-shared account ────────────────
-    const zone = route53.HostedZone.fromHostedZoneAttributes(
-      this,
-      "HostedZone",
-      {
-        hostedZoneId: cfg.hostedZoneId,
-        zoneName: cfg.hostedZoneName,
-      }
-    );
+    const zone = route53.HostedZone.fromHostedZoneAttributes(this, "Zone", {
+      hostedZoneId: cfg.hostedZoneId,
+      zoneName: cfg.zoneName,
+    });
 
     // S3 Bucket for  Reports
-    // If you already have a bucket, use fromBucketName instead
     const slaReportBucket = cfg.reportBucketName
       ? s3.Bucket.fromBucketName(this, "SLAReportBucket", cfg.reportBucketName)
       : new s3.Bucket(this, "SLAReportBucket", {
@@ -39,8 +36,6 @@ export class ReportViewerInfraStack extends cdk.Stack {
           versioned: false,
           encryption: s3.BucketEncryption.S3_MANAGED,
           blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-          removalPolicy: cdk.RemovalPolicy.RETAIN, // Don't delete reports on stack deletion
-          autoDeleteObjects: false,
           lifecycleRules: [
             {
               // Optional: Auto-delete old reports after 90 days
@@ -60,7 +55,50 @@ export class ReportViewerInfraStack extends cdk.Stack {
         zone: zone,
         target: route53.RecordTarget.fromIpAddresses(cfg.dummyIdAddress), //TEST-NET Dummy IP
         recordName: "", //This automatically will use hosted zone apex (shared.ds-shin.com)
-      }
+      },
     );
+
+    const customCognitoDomainCert = acm.Certificate.fromCertificateArn(
+      this,
+      "CognitoDomainCert",
+      cfg.cognitoCustomDomainCertARN,
+    );
+
+    // Cognito user pool
+    const userPool = new cognito.UserPool(this, "SlaReportUserPool", {
+      selfSignUpEnabled: true,
+      signInAliases: { email: true },
+      standardAttributes: { email: { required: true, mutable: true } },
+      passwordPolicy: { minLength: 12 },
+      accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
+    });
+
+    //App client (we’ll point callback to ALB first; later to CloudFront)
+    const userPoolClient = userPool.addClient("AppClient", {
+      generateSecret: true,
+      oAuth: {
+        flows: { authorizationCodeGrant: true },
+        scopes: [
+          cognito.OAuthScope.OPENID,
+          cognito.OAuthScope.EMAIL,
+          cognito.OAuthScope.PROFILE,
+        ],
+        // For now, we just want to SEE the login page.
+        // We'll update this to your real app URL after ALB/CloudFront exists.
+        callbackUrls: [`https://${cfg.dashboardFqdn}/oauth2/idpresponse`],
+        logoutUrls: [`https://${cfg.dashboardFqdn}/`],
+      },
+    });
+
+    // Cognito custom domain: slareportlogin.shared.ds-shin.com
+    //slareportlogin.shared.ds-shin.com
+    const userPoolDomain = userPool.addDomain("SLAReportUserPoolDomain", {
+      customDomain: {
+        domainName: cfg.loginFqdn,
+        certificate: customCognitoDomainCert,
+      },
+    });
+
+    userPoolDomain.node.addDependency(parentDomainRecord);
   }
 }
