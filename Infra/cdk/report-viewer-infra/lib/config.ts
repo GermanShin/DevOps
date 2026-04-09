@@ -8,9 +8,9 @@ const hostedZoneId = "Z0151506X0ZEQ6A3L0NT";
 const dummyIpAddress = "192.0.2.1";
 
 const cognitoCustomDomainCertARN =
-  "arn:aws:acm:us-east-1:890336468788:certificate/888a1172-ef05-4d46-b704-a2df9769d5db";
+  "arn:aws:acm:us-east-1:890336468788:certificate/48085772-a85a-4ca9-9cdc-c09e1944abd6";
 const cloudFrontCertArn =
-  "arn:aws:acm:us-east-1:890336468788:certificate/17813c91-879d-4a3c-ae72-fa7a4e0da602";
+  "arn:aws:acm:us-east-1:890336468788:certificate/d35faa3a-db39-4eef-b811-5e60456cc21f";
 const cognitoCloudFrontFqdn = "d2qpq62vczftwx.cloudfront.net";
 
 export interface GlobalConfig {
