@@ -4,6 +4,14 @@ import * as route53 from "aws-cdk-lib/aws-route53";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as cognito from "aws-cdk-lib/aws-cognito";
+import * as ec2 from "aws-cdk-lib/aws-ec2";
+import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as path from "path";
+import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
+import * as elbv2_targets from "aws-cdk-lib/aws-elasticloadbalancingv2-targets";
+import * as elbv2_actions from "aws-cdk-lib/aws-elasticloadbalancingv2-actions";
+import * as route53_targets from "aws-cdk-lib/aws-route53-targets";
 import { Config } from "./config";
 
 export interface ReportViewerInfraStackProps extends cdk.StackProps {
@@ -100,5 +108,95 @@ export class ReportViewerInfraStack extends cdk.Stack {
     });
 
     userPoolDomain.node.addDependency(parentDomainRecord);
+
+    // Route53 CNAME: slareportlogin.shared.ds-shin.com → Cognito's CloudFront domain
+    new route53.CnameRecord(this, "CognitoLoginCname", {
+      zone,
+      recordName: cfg.loginFqdn,
+      domainName: userPoolDomain.cloudFrontEndpoint,
+    });
+
+    const vpc = new ec2.Vpc(this, "Vpc", {
+      maxAzs: 2,
+      natGateways: 0, // ← This removes NAT Gateways!
+      subnetConfiguration: [
+        {
+          cidrMask: 24,
+          name: "Public",
+          subnetType: ec2.SubnetType.PUBLIC,
+        },
+      ],
+    });
+
+    // Dashboard lambda
+    const dashboardFn = new NodejsFunction(this, "DashboardFn", {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      entry: path.join(__dirname, "../lambda/dashboard.ts"),
+      handler: "handler",
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 512,
+      environment: {
+        ALLURE_BUCKET_NAME: this.slaReportBucket.bucketName,
+      },
+      bundling: {
+        minify: true,
+        sourceMap: true,
+        externalModules: ["@aws-sdk/*"], // AWS SDK v3 is available in Lambda runtime
+      },
+    });
+
+    // Grant Lambda read access to S3
+    slaReportBucket.grantRead(dashboardFn);
+
+    const albCert = new acm.Certificate(this, "AlbCert", {
+      domainName: cfg.dashboardFqdn, // slareport.shared.ds-shin.com
+      validation: acm.CertificateValidation.fromDns(zone),
+    });
+    // ALB
+    const alb = new elbv2.ApplicationLoadBalancer(this, "Alb", {
+      vpc,
+      internetFacing: true,
+    });
+
+    // Route53 alias: slareport.shared.ds-shin.com → ALB
+    new route53.ARecord(this, "AlbAliasRecord", {
+      zone,
+      recordName: cfg.dashboardFqdn,
+      target: route53.RecordTarget.fromAlias(
+        new route53_targets.LoadBalancerTarget(alb),
+      ),
+    });
+
+    // HTTP 80 -> redirect to HTTPS 443
+    alb.addListener("HttpListener", {
+      port: 80,
+      open: true,
+      defaultAction: elbv2.ListenerAction.redirect({
+        protocol: "HTTPS",
+        port: "443",
+        permanent: true,
+      }),
+    });
+
+    // HTTPS listener (required for authenticate-cognito)
+    const httpsListener = alb.addListener("HttpsListener", {
+      port: 443,
+      open: true,
+      certificates: [elbv2.ListenerCertificate.fromCertificateManager(albCert)],
+    });
+
+    const tg = new elbv2.ApplicationTargetGroup(this, "LambdaTg", {
+      targetType: elbv2.TargetType.LAMBDA,
+      targets: [new elbv2_targets.LambdaTarget(dashboardFn)],
+    });
+
+    httpsListener.addAction("Default", {
+      action: new elbv2_actions.AuthenticateCognitoAction({
+        userPool,
+        userPoolClient,
+        userPoolDomain,
+        next: elbv2.ListenerAction.forward([tg]),
+      }),
+    });
   }
 }
