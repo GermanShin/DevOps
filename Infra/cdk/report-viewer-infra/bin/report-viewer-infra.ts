@@ -1,9 +1,14 @@
 #!/usr/bin/env node
 import * as cdk from "aws-cdk-lib";
+import { Aspects } from "aws-cdk-lib";
 import { ReportViewerInfraStack } from "../lib/report-viewer-infra-stack";
 import { GlobalStack } from "../lib/global-stack";
 import { GLOBAL_CONFIG } from "../lib/config";
 import { CONFIG } from "../lib/config";
+import {
+  NoPublicAccessBlockAspect,
+  NoNatGatewayAspect,
+} from "../lib/aspects";
 
 const app = new cdk.App();
 
@@ -15,7 +20,6 @@ const global = app.node.tryGetContext("global") !== "false";
 if (global) {
   const gcfg = GLOBAL_CONFIG;
   const env = { account: gcfg.account, region: gcfg.region };
-  const account = process.env.CDK_DEFAULT_ACCOUNT!;
   // Global stack for certificates in us-east-1
   new GlobalStack(app, "GlobalStack", {
     env,
@@ -24,8 +28,11 @@ if (global) {
 } else {
   const cfg = CONFIG;
   const env = { account: cfg.account, region: cfg.region };
-  new ReportViewerInfraStack(app, "ReportViewerInfraStack", {
+  const stack = new ReportViewerInfraStack(app, "ReportViewerInfraStack", {
     env,
     cfg,
   });
+
+  Aspects.of(stack).add(new NoPublicAccessBlockAspect());
+  Aspects.of(stack).add(new NoNatGatewayAspect());
 }

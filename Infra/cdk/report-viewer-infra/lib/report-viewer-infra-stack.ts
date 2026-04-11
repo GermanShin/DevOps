@@ -43,7 +43,8 @@ export class ReportViewerInfraStack extends cdk.Stack {
           bucketName: `sla-reports-${this.account}`,
           versioned: false,
           encryption: s3.BucketEncryption.S3_MANAGED,
-          blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+          blockPublicAccess: s3.BlockPublicAccess.BLOCK_ACLS_ONLY,
+          publicReadAccess: true,
           lifecycleRules: [
             {
               // Optional: Auto-delete old reports after 90 days
