@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1020" viewBox="0 0 1200 1020" font-family="Arial, sans-serif">
+
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#555" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#1565C0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-purple" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#7C3AED" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#2E7D32" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-gray" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#9E9E9E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="1020" fill="#F8F9FA"/>
+
+  <!-- ── Title ─────────────────────────────────────────────────────────── -->
+  <text x="600" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="#1F4E79">ReportViewerInfraStack — ds-shared Account (ap-southeast-2)</text>
+
+  <!-- ── Internet ───────────────────────────────────────────────────────── -->
+  <rect x="490" y="48" width="220" height="72" rx="10" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+  <text x="600" y="73" text-anchor="middle" font-size="13" font-weight="bold" fill="#1565C0">Internet</text>
+  <text x="600" y="90" text-anchor="middle" font-size="10" fill="#555">User / Browser traffic</text>
+  <text x="600" y="106" text-anchor="middle" font-size="10" fill="#555">slareport.shared.ds-shin.com</text>
+
+  <!-- ── GlobalStack (us-east-1) ────────────────────────────────────────── -->
+  <rect x="895" y="48" width="295" height="180" rx="8" fill="#EDE9FE" stroke="#7C3AED" stroke-width="2"/>
+  <rect x="895" y="48" width="295" height="36" rx="8" fill="#7C3AED"/>
+  <rect x="895" y="72" width="295" height="12" fill="#7C3AED"/>
+  <text x="1042" y="70" text-anchor="middle" font-size="12" font-weight="bold" fill="#FFFFFF">GlobalStack  |  us-east-1</text>
+  <text x="1042" y="96" text-anchor="middle" font-size="9" fill="#4C1D95">--context global=true  |  STEP 1  |  Account: 890336468788</text>
+  <text x="1042" y="112" text-anchor="middle" font-size="9" fill="#4C1D95">Must deploy first — certs must exist in us-east-1</text>
+  <rect x="915" y="120" width="255" height="40" rx="5" fill="#DDD6FE" stroke="#7C3AED" stroke-width="1"/>
+  <text x="1042" y="136" text-anchor="middle" font-size="9" font-weight="bold" fill="#4C1D95">CloudFrontCert (future use)</text>
+  <text x="1042" y="152" text-anchor="middle" font-size="8" fill="#5B21B6">slareport.shared.ds-shin.com</text>
+  <rect x="915" y="165" width="255" height="40" rx="5" fill="#DDD6FE" stroke="#7C3AED" stroke-width="1"/>
+  <text x="1042" y="181" text-anchor="middle" font-size="9" font-weight="bold" fill="#4C1D95">CognitoCustomDomainCert</text>
+  <text x="1042" y="197" text-anchor="middle" font-size="8" fill="#5B21B6">slareportlogin.shared.ds-shin.com</text>
+  <text x="1042" y="220" text-anchor="middle" font-size="8" fill="#7C3AED">Output: CognitoCustomDomainCertArn  |  CloudFrontCertArn</text>
+
+  <!-- ── Route 53 ───────────────────────────────────────────────────────── -->
+  <rect x="110" y="143" width="660" height="110" rx="8" fill="#E9D5FF" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="440" y="161" text-anchor="middle" font-size="11" font-weight="bold" fill="#4C1D95">Route 53  |  Hosted Zone: shared.ds-shin.com  (Z0151506X0ZEQ6A3L0NT)  — IMPORTED</text>
+
+  <!-- DNS record sub-boxes -->
+  <rect x="120" y="167" width="200" height="75" rx="5" fill="#DDD6FE" stroke="#7C3AED" stroke-width="1"/>
+  <text x="220" y="182" text-anchor="middle" font-size="9" font-weight="bold" fill="#4C1D95">A Record (Alias)</text>
+  <text x="220" y="196" text-anchor="middle" font-size="9" fill="#5B21B6">slareport.shared.ds-shin.com</text>
+  <text x="220" y="209" text-anchor="middle" font-size="9" fill="#5B21B6">→ ALB (LoadBalancerTarget)</text>
+  <text x="220" y="222" text-anchor="middle" font-size="8" fill="#7C3AED">AlbAliasRecord</text>
+  <text x="220" y="235" text-anchor="middle" font-size="8" fill="#7C3AED">recordName: dashboardFqdn</text>
+
+  <rect x="330" y="167" width="205" height="75" rx="5" fill="#DDD6FE" stroke="#7C3AED" stroke-width="1"/>
+  <text x="432" y="182" text-anchor="middle" font-size="9" font-weight="bold" fill="#4C1D95">CNAME Record</text>
+  <text x="432" y="196" text-anchor="middle" font-size="9" fill="#5B21B6">slareportlogin.shared.ds-shin.com</text>
+  <text x="432" y="209" text-anchor="middle" font-size="9" fill="#5B21B6">→ Cognito CF endpoint</text>
+  <text x="432" y="222" text-anchor="middle" font-size="8" fill="#7C3AED">CognitoLoginCname</text>
+  <text x="432" y="235" text-anchor="middle" font-size="8" fill="#7C3AED">recordName: loginFqdn</text>
+
+  <rect x="545" y="167" width="215" height="75" rx="5" fill="#DDD6FE" stroke="#7C3AED" stroke-width="1"/>
+  <text x="652" y="182" text-anchor="middle" font-size="9" font-weight="bold" fill="#4C1D95">A Record (Dummy)</text>
+  <text x="652" y="196" text-anchor="middle" font-size="9" fill="#5B21B6">shared.ds-shin.com → 192.0.2.1</text>
+  <text x="652" y="209" text-anchor="middle" font-size="9" fill="#5B21B6">TEST-NET IP (RFC 5737)</text>
+  <text x="652" y="222" text-anchor="middle" font-size="8" fill="#7C3AED">SlaReportCognitoDummyAliasRecord</text>
+  <text x="652" y="235" text-anchor="middle" font-size="8" fill="#7C3AED">Cognito custom domain prereq</text>
+
+  <!-- ── Account outer box (ap-southeast-2) ────────────────────────────── -->
+  <rect x="10" y="270" width="1180" height="718" rx="10" fill="none" stroke="#232F3E" stroke-width="2"/>
+  <text x="20" y="290" font-size="12" font-weight="bold" fill="#232F3E">ds-shared Account  |  890336468788  |  ap-southeast-2</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!--  VPC                                                               -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <rect x="30" y="295" width="820" height="252" rx="8" fill="none" stroke="#2E75B6" stroke-width="1.5" stroke-dasharray="7,4"/>
+  <text x="44" y="313" font-size="11" font-weight="bold" fill="#2E75B6">VPC  |  PUBLIC subnets (AZ1 + AZ2)  |  cidrMask: 24  |  natGateways: 0  |  NoNatGatewayAspect ✓</text>
+
+  <!-- ALB -->
+  <rect x="50" y="318" width="780" height="215" rx="8" fill="#BBDEFB" stroke="#1565C0" stroke-width="1.5"/>
+  <text x="440" y="337" text-anchor="middle" font-size="12" font-weight="bold" fill="#0D47A1">Application Load Balancer  (Alb)  —  internet-facing  |  PUBLIC subnets</text>
+
+  <!-- HTTP :80 listener -->
+  <rect x="70" y="345" width="340" height="55" rx="6" fill="#E3F2FD" stroke="#1565C0" stroke-width="1"/>
+  <text x="240" y="361" text-anchor="middle" font-size="10" font-weight="bold" fill="#0D47A1">HTTP :80 Listener  (HttpListener)</text>
+  <text x="240" y="376" text-anchor="middle" font-size="9" fill="#1565C0">open: true  →  Redirect HTTPS :443  (permanent 301)</text>
+  <text x="240" y="390" text-anchor="middle" font-size="9" fill="#1565C0">ListenerAction.redirect({ protocol: HTTPS, port: 443 })</text>
+
+  <!-- HTTPS :443 listener -->
+  <rect x="70" y="408" width="340" height="112" rx="6" fill="#E3F2FD" stroke="#1565C0" stroke-width="1"/>
+  <text x="240" y="424" text-anchor="middle" font-size="10" font-weight="bold" fill="#0D47A1">HTTPS :443 Listener  (HttpsListener)</text>
+  <text x="240" y="439" text-anchor="middle" font-size="9" fill="#1565C0">open: true  |  Certificate: AlbCert</text>
+  <text x="240" y="454" text-anchor="middle" font-size="9" fill="#0D47A1">Default action: AuthenticateCognitoAction</text>
+  <text x="240" y="468" text-anchor="middle" font-size="9" fill="#1565C0">  userPool + userPoolClient + userPoolDomain</text>
+  <text x="240" y="482" text-anchor="middle" font-size="9" fill="#1565C0">  next: ListenerAction.forward([LambdaTg])</text>
+  <text x="240" y="497" text-anchor="middle" font-size="9" fill="#0D47A1">Unauthenticated: redirected to Cognito login</text>
+  <text x="240" y="512" text-anchor="middle" font-size="9" fill="#1565C0">Authenticated: forwarded to Lambda target group</text>
+
+  <!-- ACM AlbCert (ap-southeast-2) -->
+  <rect x="420" y="345" width="390" height="55" rx="6" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1"/>
+  <text x="615" y="361" text-anchor="middle" font-size="10" font-weight="bold" fill="#4C1D95">ACM Certificate  (AlbCert)  —  ap-southeast-2</text>
+  <text x="615" y="376" text-anchor="middle" font-size="9" fill="#5B21B6">domainName: slareport.shared.ds-shin.com</text>
+  <text x="615" y="390" text-anchor="middle" font-size="9" fill="#5B21B6">validation: CertificateValidation.fromDns(zone)</text>
+
+  <!-- Lambda Target Group -->
+  <rect x="420" y="408" width="390" height="112" rx="6" fill="#C8E6C9" stroke="#2E7D32" stroke-width="1"/>
+  <text x="615" y="424" text-anchor="middle" font-size="10" font-weight="bold" fill="#1B5E20">Lambda Target Group  (LambdaTg)</text>
+  <text x="615" y="440" text-anchor="middle" font-size="9" fill="#2E7D32">TargetType: LAMBDA</text>
+  <text x="615" y="455" text-anchor="middle" font-size="9" fill="#2E7D32">target: LambdaTarget(DashboardFn)</text>
+  <text x="615" y="470" text-anchor="middle" font-size="9" fill="#1B5E20">Registered as next action after Cognito auth</text>
+  <text x="615" y="485" text-anchor="middle" font-size="9" fill="#2E7D32">Health check: automatic (Lambda invoke)</text>
+  <text x="615" y="500" text-anchor="middle" font-size="9" fill="#2E7D32">No VPC required — Lambda invoked directly by ALB</text>
+  <text x="615" y="515" text-anchor="middle" font-size="9" fill="#2E7D32">Permission: lambda:InvokeFunction granted to ALB</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!--  COGNITO                                                            -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <rect x="30" y="567" width="345" height="295" rx="8" fill="#E9D5FF" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="202" y="585" text-anchor="middle" font-size="12" font-weight="bold" fill="#4C1D95">Cognito</text>
+
+  <!-- User Pool sub-box -->
+  <rect x="48" y="592" width="310" height="110" rx="6" fill="#DDD6FE" stroke="#7C3AED" stroke-width="1"/>
+  <text x="203" y="608" text-anchor="middle" font-size="10" font-weight="bold" fill="#4C1D95">User Pool  (SlaReportUserPool)</text>
+  <text x="203" y="623" text-anchor="middle" font-size="9" fill="#5B21B6">selfSignUpEnabled: true</text>
+  <text x="203" y="637" text-anchor="middle" font-size="9" fill="#5B21B6">signInAliases: { email: true }</text>
+  <text x="203" y="651" text-anchor="middle" font-size="9" fill="#5B21B6">passwordPolicy: minLength 12</text>
+  <text x="203" y="665" text-anchor="middle" font-size="9" fill="#5B21B6">accountRecovery: EMAIL_ONLY</text>
+  <text x="203" y="679" text-anchor="middle" font-size="9" fill="#5B21B6">standardAttributes: email  (required, mutable)</text>
+  <text x="203" y="693" text-anchor="middle" font-size="9" fill="#5B21B6">standardAttributes: email  (required, mutable)</text>
+
+  <!-- App Client sub-box -->
+  <rect x="48" y="708" width="310" height="75" rx="6" fill="#DDD6FE" stroke="#7C3AED" stroke-width="1"/>
+  <text x="203" y="724" text-anchor="middle" font-size="10" font-weight="bold" fill="#4C1D95">App Client  (AppClient)</text>
+  <text x="203" y="739" text-anchor="middle" font-size="9" fill="#5B21B6">generateSecret: true  |  authorizationCodeGrant</text>
+  <text x="203" y="753" text-anchor="middle" font-size="9" fill="#5B21B6">scopes: openid, email, profile</text>
+  <text x="203" y="767" text-anchor="middle" font-size="8" fill="#5B21B6">callbackUrl: .../oauth2/idpresponse  |  logoutUrl: .../</text>
+  <text x="203" y="780" text-anchor="middle" font-size="8" fill="#7C3AED">dashboardFqdn: slareport.shared.ds-shin.com</text>
+
+  <!-- Custom Domain sub-box -->
+  <rect x="48" y="789" width="310" height="65" rx="6" fill="#DDD6FE" stroke="#7C3AED" stroke-width="1"/>
+  <text x="203" y="805" text-anchor="middle" font-size="10" font-weight="bold" fill="#4C1D95">Custom Domain  (SLAReportUserPoolDomain)</text>
+  <text x="203" y="820" text-anchor="middle" font-size="9" fill="#5B21B6">slareportlogin.shared.ds-shin.com</text>
+  <text x="203" y="834" text-anchor="middle" font-size="8" fill="#5B21B6">cert: CognitoCustomDomainCert (ARN from GlobalStack, us-east-1)</text>
+  <text x="203" y="847" text-anchor="middle" font-size="8" fill="#7C3AED">addDependency(parentDomainRecord) — dummy A record first</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!--  LAMBDA                                                             -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <rect x="390" y="567" width="285" height="295" rx="8" fill="#FFE0B2" stroke="#E65100" stroke-width="1.5"/>
+  <text x="532" y="585" text-anchor="middle" font-size="12" font-weight="bold" fill="#BF360C">Lambda Function</text>
+
+  <rect x="408" y="592" width="249" height="258" rx="6" fill="#FFCC80" stroke="#F57C00" stroke-width="1"/>
+  <text x="532" y="610" text-anchor="middle" font-size="10" font-weight="bold" fill="#E65100">DashboardFn  (NodejsFunction)</text>
+  <text x="532" y="626" text-anchor="middle" font-size="9" fill="#F57C00">Runtime: NODEJS_20_X</text>
+  <text x="532" y="641" text-anchor="middle" font-size="9" fill="#F57C00">entry: lambda/dashboard.ts</text>
+  <text x="532" y="656" text-anchor="middle" font-size="9" fill="#F57C00">handler: handler</text>
+  <text x="532" y="671" text-anchor="middle" font-size="9" fill="#F57C00">timeout: 30 s  |  memorySize: 512 MB</text>
+  <text x="532" y="686" text-anchor="middle" font-size="9" fill="#E65100">env: ALLURE_BUCKET_NAME = slaReportBucket.bucketName</text>
+  <text x="532" y="701" text-anchor="middle" font-size="9" fill="#F57C00">bundling: minify: true  |  sourceMap: true</text>
+  <text x="532" y="716" text-anchor="middle" font-size="9" fill="#F57C00">externalModules: @aws-sdk/*  (Lambda runtime)</text>
+  <text x="532" y="731" text-anchor="middle" font-size="9" fill="#E65100">slaReportBucket.grantRead(dashboardFn)</text>
+  <text x="532" y="746" text-anchor="middle" font-size="9" fill="#F57C00">No VPC config  —  runs outside VPC</text>
+  <text x="532" y="761" text-anchor="middle" font-size="9" fill="#F57C00">Invoked directly by ALB target group</text>
+  <text x="532" y="776" text-anchor="middle" font-size="9" fill="#E65100">Reads S3: lists reports, renders HTML dashboard</text>
+  <text x="532" y="791" text-anchor="middle" font-size="9" fill="#F57C00">Triggered per request (serverless, no idle cost)</text>
+  <text x="532" y="806" text-anchor="middle" font-size="9" fill="#F57C00">IAM: S3 GetObject + ListBucket on sla-reports-*</text>
+  <text x="532" y="821" text-anchor="middle" font-size="9" fill="#F57C00">Logs: CloudWatch Logs (auto-created log group)</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!--  S3 BUCKET                                                          -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <rect x="690" y="567" width="360" height="295" rx="8" fill="#FCE4EC" stroke="#C2185B" stroke-width="1.5"/>
+  <text x="870" y="585" text-anchor="middle" font-size="12" font-weight="bold" fill="#880E4F">S3 Bucket</text>
+
+  <rect x="708" y="592" width="324" height="258" rx="6" fill="#F8BBD0" stroke="#C2185B" stroke-width="1"/>
+  <text x="870" y="610" text-anchor="middle" font-size="10" font-weight="bold" fill="#880E4F">sla-reports-890336468788</text>
+  <text x="870" y="625" text-anchor="middle" font-size="9" fill="#C2185B">bucketName: sla-reports-${account}</text>
+  <text x="870" y="640" text-anchor="middle" font-size="9" fill="#C2185B">encryption: S3_MANAGED (SSE-S3)</text>
+  <text x="870" y="655" text-anchor="middle" font-size="9" fill="#C2185B">blockPublicAccess: BLOCK_ACLS_ONLY</text>
+  <text x="870" y="670" text-anchor="middle" font-size="9" fill="#880E4F">publicReadAccess: true  (NoPublicAccessBlockAspect)</text>
+  <text x="870" y="685" text-anchor="middle" font-size="9" fill="#C2185B">versioned: false</text>
+  <text x="870" y="700" text-anchor="middle" font-size="9" fill="#C2185B">Lifecycle rule: expiration 90 days  (enabled: false)</text>
+  <text x="870" y="715" text-anchor="middle" font-size="9" fill="#C2185B">reportBucketName: optional — import existing bucket</text>
+  <text x="870" y="730" text-anchor="middle" font-size="9" fill="#C2185B">  if set: s3.Bucket.fromBucketName(...)  (no new bucket)</text>
+  <text x="870" y="745" text-anchor="middle" font-size="9" fill="#C2185B">  if unset: new Bucket (CDK-managed)</text>
+  <text x="870" y="760" text-anchor="middle" font-size="9" fill="#880E4F">Allure HTML reports uploaded here by CI/CD</text>
+  <text x="870" y="775" text-anchor="middle" font-size="9" fill="#C2185B">Read by DashboardFn (via grantRead)</text>
+  <text x="870" y="790" text-anchor="middle" font-size="9" fill="#C2185B">Reports also publicly readable (static links)</text>
+  <text x="870" y="805" text-anchor="middle" font-size="8" fill="#AD1457">Export: slaReportBucket (public readonly field)</text>
+
+  <!-- ── Aspects note ───────────────────────────────────────────────────── -->
+  <rect x="30" y="875" width="1150" height="42" rx="6" fill="#FFFDE7" stroke="#F9A825" stroke-width="1.5"/>
+  <text x="605" y="892" text-anchor="middle" font-size="10" font-weight="bold" fill="#F57F17">CDK Aspects applied to ReportViewerInfraStack</text>
+  <text x="605" y="908" text-anchor="middle" font-size="9" fill="#F57F17">NoPublicAccessBlockAspect — overrides S3 blockPublicAccess to allow public reads  |  NoNatGatewayAspect — validates VPC has no NAT Gateways (cost guard)</text>
+
+  <!-- ── Deployment badge ───────────────────────────────────────────────── -->
+  <rect x="30" y="926" width="1150" height="28" rx="6" fill="#0D47A1"/>
+  <text x="605" y="944" text-anchor="middle" font-size="10" font-weight="bold" fill="#FFFFFF">STEP 2:  cdk deploy ReportViewerInfraStack --context global=false  |  Profile: ds-shared  |  ap-southeast-2</text>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!--  ARROWS                                                              -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+
+  <!-- Internet → Route53 (DNS) -->
+  <line x1="600" y1="120" x2="600" y2="135" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+  <path d="M 600,135 H 440 V 143" fill="none" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="510" y="132" font-size="9" fill="#555">DNS lookup</text>
+
+  <!-- Route53 A record → ALB (alias) -->
+  <path d="M 220,253 V 268 H 440 V 318" fill="none" stroke="#1565C0" stroke-width="2" marker-end="url(#arr-blue)"/>
+  <text x="310" y="286" font-size="9" font-weight="bold" fill="#1565C0">Alias → ALB</text>
+
+  <!-- ALB HTTP :80 → self (redirect label) -->
+  <path d="M 69,372 Q 50,372 50,380 Q 50,388 69,388" fill="none" stroke="#1565C0" stroke-width="1.5" stroke-dasharray="4,2"/>
+  <text x="20" y="380" font-size="8" fill="#1565C0" transform="rotate(-90, 20, 380)">:80→:443</text>
+
+  <!-- ALB HTTPS :443 → Cognito (auth redirect, down-left) -->
+  <path d="M 190,520 V 540 H 200 V 567" fill="none" stroke="#7C3AED" stroke-width="1.5" marker-end="url(#arr-purple)"/>
+  <text x="132" y="548" font-size="9" fill="#7C3AED">auth redirect</text>
+
+  <!-- Cognito callback → ALB (up) -->
+  <path d="M 220,567 V 540 H 260 V 520" fill="none" stroke="#7C3AED" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#arr-purple)"/>
+  <text x="265" y="548" font-size="9" fill="#7C3AED">/oauth2/idpresponse</text>
+
+  <!-- ALB Lambda TG → Lambda (down) -->
+  <path d="M 615,520 V 540 H 532 V 567" fill="none" stroke="#E65100" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="555" y="553" font-size="9" font-weight="bold" fill="#E65100">invoke</text>
+
+  <!-- Lambda → S3 (right) -->
+  <line x1="675" y1="715" x2="708" y2="715" stroke="#2E7D32" stroke-width="2" marker-end="url(#arr-green)"/>
+  <text x="678" y="708" font-size="9" font-weight="bold" fill="#2E7D32">grantRead</text>
+
+  <!-- GlobalStack cert → Cognito custom domain (dashed) -->
+  <path d="M 915,181 H 880 V 820 H 358" fill="none" stroke="#7C3AED" stroke-width="1.2" stroke-dasharray="5,3" marker-end="url(#arr-purple)"/>
+  <text x="892" y="510" font-size="8" fill="#7C3AED" transform="rotate(-90, 892, 510)">CognitoCustomDomainCertArn (ARN reference)</text>
+
+  <!-- ── Legend ─────────────────────────────────────────────────────────── -->
+  <rect x="10" y="965" width="1180" height="50" rx="6" fill="#F5F5F5" stroke="#BDBDBD" stroke-width="1"/>
+  <text x="26" y="982" font-size="11" font-weight="bold" fill="#333">Legend</text>
+
+  <rect x="26" y="990" width="14" height="10" fill="#BBDEFB" stroke="#1565C0" stroke-width="1"/>
+  <text x="46" y="999" font-size="10" fill="#333">ALB / Networking</text>
+
+  <rect x="175" y="990" width="14" height="10" fill="#E9D5FF" stroke="#7C3AED" stroke-width="1"/>
+  <text x="195" y="999" font-size="10" fill="#333">Route53 / ACM / Cognito</text>
+
+  <rect x="370" y="990" width="14" height="10" fill="#FFE0B2" stroke="#E65100" stroke-width="1"/>
+  <text x="390" y="999" font-size="10" fill="#333">Lambda</text>
+
+  <rect x="450" y="990" width="14" height="10" fill="#FCE4EC" stroke="#C2185B" stroke-width="1"/>
+  <text x="470" y="999" font-size="10" fill="#333">S3 Storage</text>
+
+  <rect x="555" y="990" width="14" height="10" fill="#FFFDE7" stroke="#F9A825" stroke-width="1"/>
+  <text x="575" y="999" font-size="10" fill="#333">CDK Aspects</text>
+
+  <line x1="668" y1="995" x2="698" y2="995" stroke="#1565C0" stroke-width="2"/>
+  <text x="704" y="999" font-size="10" fill="#333">Primary traffic (authenticated request)</text>
+
+  <line x1="870" y1="995" x2="900" y2="995" stroke="#7C3AED" stroke-width="1.5" stroke-dasharray="4,2"/>
+  <text x="906" y="999" font-size="10" fill="#333">Auth redirect / cert reference</text>
+
+  <line x1="1060" y1="995" x2="1090" y2="995" stroke="#2E7D32" stroke-width="2"/>
+  <text x="1096" y="999" font-size="10" fill="#333">IAM grantRead</text>
+
+</svg>
