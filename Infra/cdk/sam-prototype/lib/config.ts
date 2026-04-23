@@ -13,9 +13,9 @@ export const CONFIG: Config = {
   appName: "sam-prototype",
   account: "890336468788", // ds-shared
   region: "ap-southeast-2",
-  lambdaVersion: "v1",
+  lambdaVersion: "v2",
   trafficShift: {
     percentage: 10,
-    intervalMinutes: 1, // short window for easy testing — change to suit your needs
+    intervalMinutes: 3,
   },
 };
