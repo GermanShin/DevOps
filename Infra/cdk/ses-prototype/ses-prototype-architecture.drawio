@@ -1,0 +1,155 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="SES Prototype Architecture">
+    <mxGraphModel dx="1422" dy="762" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title Bar -->
+        <mxCell id="title" value="SES Prototype — AWS Architecture (ap-southeast-2 / ds-dev: 409749468395)"
+          style="text;html=1;strokeColor=none;fillColor=#1a2332;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=16;fontColor=#FFFFFF;fontStyle=1;"
+          vertex="1" parent="1">
+          <mxGeometry x="50" y="30" width="1300" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Internet / Developer -->
+        <mxCell id="internet" value="Internet / Developer&#xa;(AWS CLI / SDK)"
+          style="shape=mxgraph.aws4.user;fillColor=#607D8B;strokeColor=#607D8B;fontColor=#333333;fontStyle=1;fontSize=10;verticalLabelPosition=bottom;labelPosition=center;verticalAlign=top;"
+          vertex="1" parent="1">
+          <mxGeometry x="625" y="110" width="60" height="65" as="geometry" />
+        </mxCell>
+
+        <!-- SES outer region -->
+        <mxCell id="sesRegion" value="Amazon SES"
+          style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_ses;strokeColor=#E65100;fillColor=#FBE9E7;verticalAlign=top;align=left;spacingTop=25;spacingLeft=15;fontSize=13;fontStyle=1;fontColor=#E65100;whiteSpace=wrap;html=1;"
+          vertex="1" parent="1">
+          <mxGeometry x="60" y="220" width="1280" height="290" as="geometry" />
+        </mxCell>
+
+        <!-- Sender Identity -->
+        <mxCell id="senderBox" value="Email Identity (Sender)&#xa;germanshin1217@gmail.com"
+          style="shape=mxgraph.aws4.ses;fillColor=#E65100;strokeColor=#E65100;fontColor=#333333;fontStyle=0;fontSize=10;verticalLabelPosition=bottom;labelPosition=center;verticalAlign=top;"
+          vertex="1" parent="1">
+          <mxGeometry x="130" y="285" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- SES Core -->
+        <mxCell id="sesCore" value="Amazon SES&#xa;ConfigSet: ses-prototype-config-set"
+          style="shape=mxgraph.aws4.ses;fillColor=#BF360C;strokeColor=#BF360C;fontColor=#333333;fontStyle=0;fontSize=10;verticalLabelPosition=bottom;labelPosition=center;verticalAlign=top;"
+          vertex="1" parent="1">
+          <mxGeometry x="625" y="270" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Recipient Identity -->
+        <mxCell id="recipientBox" value="Email Identity (Recipient)&#xa;jjpssh1203@gmail.com"
+          style="shape=mxgraph.aws4.ses;fillColor=#E65100;strokeColor=#E65100;fontColor=#333333;fontStyle=0;fontSize=10;verticalLabelPosition=bottom;labelPosition=center;verticalAlign=top;"
+          vertex="1" parent="1">
+          <mxGeometry x="1110" y="285" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- SES Events Banner -->
+        <mxCell id="sesEvents" value="&lt;b&gt;SES Event Notifications&lt;/b&gt;&lt;br/&gt;send  ·  reject  ·  bounce  ·  complaint  ·  delivery  ·  renderingFailure  ·  deliveryDelay"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0CC;strokeColor=#E65100;fontColor=#BF360C;fontSize=11;verticalAlign=middle;"
+          vertex="1" parent="1">
+          <mxGeometry x="100" y="430" width="1200" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- SNS -->
+        <mxCell id="sns" value="Amazon SNS&#xa;Topic: ses-prototype-ses-events"
+          style="shape=mxgraph.aws4.sns;fillColor=#E91E63;strokeColor=#E91E63;fontColor=#333333;fontStyle=0;fontSize=10;verticalLabelPosition=bottom;labelPosition=center;verticalAlign=top;"
+          vertex="1" parent="1">
+          <mxGeometry x="625" y="570" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Lambda -->
+        <mxCell id="lambda" value="AWS Lambda&#xa;ses-prototype-ses-event-logger"
+          style="shape=mxgraph.aws4.lambda;fillColor=#FF6F00;strokeColor=#FF6F00;fontColor=#333333;fontStyle=0;fontSize=10;verticalLabelPosition=bottom;labelPosition=center;verticalAlign=top;"
+          vertex="1" parent="1">
+          <mxGeometry x="625" y="740" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- CloudWatch Logs -->
+        <mxCell id="cw" value="Amazon CloudWatch Logs&#xa;/aws/lambda/ses-prototype-ses-event-logger"
+          style="shape=mxgraph.aws4.cloudwatch;fillColor=#1565C0;strokeColor=#1565C0;fontColor=#333333;fontStyle=0;fontSize=10;verticalLabelPosition=bottom;labelPosition=center;verticalAlign=top;"
+          vertex="1" parent="1">
+          <mxGeometry x="625" y="910" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow: Developer → SES Core -->
+        <mxCell id="a1" value="ses:SendEmail"
+          style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#555555;fontColor=#555555;fontSize=9;fontStyle=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
+          edge="1" source="internet" target="sesCore" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow: Sender → SES Core -->
+        <mxCell id="a2" value=""
+          style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#E65100;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;"
+          edge="1" source="senderBox" target="sesCore" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow: SES Core → Recipient -->
+        <mxCell id="a3" value="delivers email"
+          style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#E65100;fontColor=#E65100;fontSize=9;fontStyle=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;"
+          edge="1" source="sesCore" target="recipientBox" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow: SES Events → SNS -->
+        <mxCell id="a4" value="publishes events"
+          style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#E91E63;fontColor=#E91E63;fontSize=9;fontStyle=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
+          edge="1" source="sesEvents" target="sns" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow: SNS → Lambda -->
+        <mxCell id="a5" value="invokes"
+          style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#FF6F00;fontColor=#FF6F00;fontSize=9;fontStyle=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
+          edge="1" source="sns" target="lambda" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow: Lambda → CloudWatch -->
+        <mxCell id="a6" value="structured JSON logs"
+          style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#1565C0;fontColor=#1565C0;fontSize=9;fontStyle=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
+          edge="1" source="lambda" target="cw" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="legendTitle" value="Legend"
+          style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=11;fontStyle=1;"
+          vertex="1" parent="1">
+          <mxGeometry x="60" y="1048" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="l1" value="Amazon SES"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E65100;strokeColor=#E65100;fontColor=#FFFFFF;fontSize=9;fontStyle=1;"
+          vertex="1" parent="1">
+          <mxGeometry x="140" y="1048" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="l2" value="Amazon SNS"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E91E63;strokeColor=#E91E63;fontColor=#FFFFFF;fontSize=9;fontStyle=1;"
+          vertex="1" parent="1">
+          <mxGeometry x="260" y="1048" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="l3" value="AWS Lambda"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF6F00;strokeColor=#FF6F00;fontColor=#FFFFFF;fontSize=9;fontStyle=1;"
+          vertex="1" parent="1">
+          <mxGeometry x="380" y="1048" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="l4" value="CloudWatch Logs"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1565C0;strokeColor=#1565C0;fontColor=#FFFFFF;fontSize=9;fontStyle=1;"
+          vertex="1" parent="1">
+          <mxGeometry x="500" y="1048" width="120" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="l5" value="Internet / Developer"
+          style="rounded=1;whiteSpace=wrap;html=1;fillColor=#607D8B;strokeColor=#607D8B;fontColor=#FFFFFF;fontSize=9;fontStyle=1;"
+          vertex="1" parent="1">
+          <mxGeometry x="630" y="1048" width="130" height="30" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
