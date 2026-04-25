@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="920" viewBox="0 0 1200 920" font-family="Arial, sans-serif">
+
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#555" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-teal" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#00838F" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-orange" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#E65100" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#558B2F" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-amber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#FF8F00" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="920" fill="#F8F9FA"/>
+
+  <!-- ── Title ─────────────────────────────────────────────────────────── -->
+  <text x="600" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="#1F4E79">SamPrototypeStack — ds-shared Account (ap-southeast-2)</text>
+
+  <!-- ── Internet ───────────────────────────────────────────────────────── -->
+  <rect x="490" y="45" width="220" height="62" rx="10" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+  <text x="600" y="70" text-anchor="middle" font-size="13" font-weight="bold" fill="#1565C0">Internet</text>
+  <text x="600" y="88" text-anchor="middle" font-size="10" fill="#555">Client / HTTP requests</text>
+  <text x="600" y="101" text-anchor="middle" font-size="10" fill="#555">GET · POST · DELETE</text>
+
+  <!-- ── AWS Account outer box ──────────────────────────────────────────── -->
+  <rect x="10" y="120" width="1180" height="716" rx="10" fill="none" stroke="#232F3E" stroke-width="2"/>
+  <text x="20" y="139" font-size="12" font-weight="bold" fill="#232F3E">ds-shared Account  |  890336468788  |  ap-southeast-2</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!--  HTTP API GATEWAY v2                                               -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <rect x="240" y="150" width="720" height="205" rx="8" fill="#E0F7FA" stroke="#00838F" stroke-width="1.5"/>
+  <text x="600" y="170" text-anchor="middle" font-size="12" font-weight="bold" fill="#006064">HTTP API Gateway v2  (HttpApi)  —  sam-prototype-api</text>
+
+  <!-- Routes sub-box -->
+  <rect x="258" y="180" width="318" height="160" rx="6" fill="#B2EBF2" stroke="#00838F" stroke-width="1"/>
+  <text x="417" y="198" text-anchor="middle" font-size="10" font-weight="bold" fill="#006064">Routes</text>
+  <text x="417" y="214" text-anchor="middle" font-size="9" fill="#00838F">GET     /items</text>
+  <text x="417" y="229" text-anchor="middle" font-size="9" fill="#00838F">POST    /items</text>
+  <text x="417" y="244" text-anchor="middle" font-size="9" fill="#00838F">GET     /items/{id}</text>
+  <text x="417" y="259" text-anchor="middle" font-size="9" fill="#00838F">DELETE  /items/{id}</text>
+  <text x="417" y="279" text-anchor="middle" font-size="9" font-weight="bold" fill="#006064">Integration: HttpLambdaIntegration</text>
+  <text x="417" y="294" text-anchor="middle" font-size="9" fill="#00838F">→ LiveAlias (aliasName: "live")</text>
+  <text x="417" y="309" text-anchor="middle" font-size="9" fill="#00838F">proxy: true  |  payloadFormatVersion: 2.0</text>
+  <text x="417" y="324" text-anchor="middle" font-size="9" fill="#006064">Grants lambda:InvokeFunction to API GW</text>
+
+  <!-- CORS sub-box -->
+  <rect x="590" y="180" width="352" height="160" rx="6" fill="#B2EBF2" stroke="#00838F" stroke-width="1"/>
+  <text x="766" y="198" text-anchor="middle" font-size="10" font-weight="bold" fill="#006064">CORS Preflight</text>
+  <text x="766" y="214" text-anchor="middle" font-size="9" fill="#00838F">allowHeaders: Content-Type, Authorization</text>
+  <text x="766" y="229" text-anchor="middle" font-size="9" fill="#00838F">allowMethods: GET, POST, DELETE, OPTIONS</text>
+  <text x="766" y="244" text-anchor="middle" font-size="9" fill="#00838F">allowOrigins: *</text>
+  <text x="766" y="264" text-anchor="middle" font-size="9" font-weight="bold" fill="#006064">CfnOutput: ApiUrl</text>
+  <text x="766" y="279" text-anchor="middle" font-size="9" fill="#00838F">value: httpApi.apiEndpoint</text>
+  <text x="766" y="294" text-anchor="middle" font-size="9" fill="#00838F">https://{id}.execute-api.ap-southeast-2</text>
+  <text x="766" y="309" text-anchor="middle" font-size="9" fill="#006064">              .amazonaws.com</text>
+  <text x="766" y="324" text-anchor="middle" font-size="9" fill="#00838F">apiName: "sam-prototype-api"</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!--  LAMBDA                                                            -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <rect x="30" y="382" width="510" height="390" rx="8" fill="#FFE0B2" stroke="#E65100" stroke-width="1.5"/>
+  <text x="285" y="401" text-anchor="middle" font-size="12" font-weight="bold" fill="#BF360C">Lambda</text>
+
+  <!-- ApiHandler -->
+  <rect x="48" y="412" width="474" height="165" rx="6" fill="#FFCC80" stroke="#F57C00" stroke-width="1"/>
+  <text x="285" y="430" text-anchor="middle" font-size="10" font-weight="bold" fill="#E65100">ApiHandler  (NodejsFunction)  —  sam-prototype-api-handler</text>
+  <text x="285" y="446" text-anchor="middle" font-size="9" fill="#F57C00">Runtime: NODEJS_22_X  |  handler: handler</text>
+  <text x="285" y="461" text-anchor="middle" font-size="9" fill="#F57C00">entry: lambda/api/index.ts</text>
+  <text x="285" y="476" text-anchor="middle" font-size="9" fill="#F57C00">timeout: 30 s  |  logRetention: ONE_WEEK (7 days)</text>
+  <text x="285" y="491" text-anchor="middle" font-size="9" fill="#E65100">env: VERSION = "v2"</text>
+  <text x="285" y="506" text-anchor="middle" font-size="9" fill="#F57C00">bundling: minify: true  |  sourceMap: true</text>
+  <text x="285" y="521" text-anchor="middle" font-size="9" fill="#F57C00">currentVersionOptions: removalPolicy: RETAIN</text>
+  <text x="285" y="536" text-anchor="middle" font-size="9" fill="#E65100">Each deploy → new immutable version (retained in AWS)</text>
+  <text x="285" y="551" text-anchor="middle" font-size="9" fill="#F57C00">Logs: CloudWatch Logs (auto log group, retention managed)</text>
+  <text x="285" y="566" text-anchor="middle" font-size="9" fill="#F57C00">Invoked by API Gateway via HttpLambdaIntegration</text>
+
+  <!-- currentVersion -->
+  <rect x="48" y="590" width="220" height="78" rx="6" fill="#FFCC80" stroke="#F57C00" stroke-width="1"/>
+  <text x="158" y="608" text-anchor="middle" font-size="10" font-weight="bold" fill="#E65100">currentVersion</text>
+  <text x="158" y="624" text-anchor="middle" font-size="9" fill="#F57C00">Immutable snapshot of ApiHandler</text>
+  <text x="158" y="639" text-anchor="middle" font-size="9" fill="#F57C00">removalPolicy: RETAIN</text>
+  <text x="158" y="654" text-anchor="middle" font-size="9" fill="#E65100">New version created on each deploy</text>
+
+  <!-- LiveAlias -->
+  <rect x="282" y="590" width="240" height="78" rx="6" fill="#FFCC80" stroke="#F57C00" stroke-width="1"/>
+  <text x="402" y="608" text-anchor="middle" font-size="10" font-weight="bold" fill="#E65100">LiveAlias  (Alias)</text>
+  <text x="402" y="624" text-anchor="middle" font-size="9" fill="#F57C00">aliasName: "live"</text>
+  <text x="402" y="639" text-anchor="middle" font-size="9" fill="#F57C00">version: apiHandler.currentVersion</text>
+  <text x="402" y="654" text-anchor="middle" font-size="9" fill="#E65100">Weighted by CodeDeploy during canary</text>
+
+  <!-- CloudWatch Logs -->
+  <rect x="48" y="682" width="474" height="78" rx="6" fill="#FFF9C4" stroke="#F9A825" stroke-width="1"/>
+  <text x="285" y="700" text-anchor="middle" font-size="10" font-weight="bold" fill="#F57F17">CloudWatch Logs</text>
+  <text x="285" y="716" text-anchor="middle" font-size="9" fill="#FF8F00">Log Group: /aws/lambda/sam-prototype-api-handler</text>
+  <text x="285" y="731" text-anchor="middle" font-size="9" fill="#FF8F00">Retention: 7 days  (logRetention: ONE_WEEK)</text>
+  <text x="285" y="746" text-anchor="middle" font-size="9" fill="#F57F17">Custom resource Lambda sets retention on log group</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!--  CODEDEPLOY                                                        -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <rect x="560" y="382" width="500" height="235" rx="8" fill="#DCEDC8" stroke="#558B2F" stroke-width="1.5"/>
+  <text x="810" y="401" text-anchor="middle" font-size="12" font-weight="bold" fill="#33691E">CodeDeploy  —  Lambda Canary Deployment</text>
+
+  <!-- DeploymentConfig -->
+  <rect x="578" y="412" width="464" height="95" rx="6" fill="#AED581" stroke="#7CB342" stroke-width="1"/>
+  <text x="810" y="430" text-anchor="middle" font-size="10" font-weight="bold" fill="#33691E">LambdaDeploymentConfig  (DeploymentConfig)</text>
+  <text x="810" y="447" text-anchor="middle" font-size="9" fill="#558B2F">trafficRouting: TimeBasedCanaryTrafficRouting</text>
+  <text x="810" y="462" text-anchor="middle" font-size="9" fill="#558B2F">percentage: 10%  →  initial canary slice to new version</text>
+  <text x="810" y="477" text-anchor="middle" font-size="9" fill="#33691E">interval: 3 min  →  shift remaining 90% after interval</text>
+  <text x="810" y="492" text-anchor="middle" font-size="9" fill="#558B2F">Traffic: 10% @ t=0 min  →  100% @ t=3 min  (or rollback)</text>
+
+  <!-- DeploymentGroup -->
+  <rect x="578" y="518" width="464" height="82" rx="6" fill="#AED581" stroke="#7CB342" stroke-width="1"/>
+  <text x="810" y="536" text-anchor="middle" font-size="10" font-weight="bold" fill="#33691E">LambdaDeploymentGroup  (DeploymentGroup)</text>
+  <text x="810" y="553" text-anchor="middle" font-size="9" fill="#558B2F">alias: LiveAlias  |  deploymentConfig: DeploymentConfig</text>
+  <text x="810" y="568" text-anchor="middle" font-size="9" fill="#558B2F">alarms: [ErrorAlarm]  →  triggers automatic rollback</text>
+  <text x="810" y="583" text-anchor="middle" font-size="9" fill="#33691E">Manages alias weights; reverts on CloudWatch alarm breach</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!--  CLOUDWATCH ALARM                                                  -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <rect x="560" y="637" width="500" height="118" rx="8" fill="#FFF8E1" stroke="#FF8F00" stroke-width="1.5"/>
+  <text x="810" y="656" text-anchor="middle" font-size="12" font-weight="bold" fill="#E65100">CloudWatch</text>
+
+  <!-- ErrorAlarm sub-box -->
+  <rect x="578" y="666" width="464" height="78" rx="6" fill="#FFE082" stroke="#FF8F00" stroke-width="1"/>
+  <text x="810" y="684" text-anchor="middle" font-size="10" font-weight="bold" fill="#E65100">Alarm  (ErrorAlarm)</text>
+  <text x="810" y="700" text-anchor="middle" font-size="9" fill="#FF8F00">metric: LiveAlias.metricErrors  |  period: 1 min</text>
+  <text x="810" y="715" text-anchor="middle" font-size="9" fill="#FF8F00">threshold: 1  |  evaluationPeriods: 1</text>
+  <text x="810" y="730" text-anchor="middle" font-size="9" fill="#E65100">ALARM state → CodeDeploy rolls back alias to previous version</text>
+
+  <!-- ── Deployment banner ──────────────────────────────────────────────── -->
+  <rect x="30" y="790" width="1150" height="28" rx="6" fill="#0D47A1"/>
+  <text x="605" y="809" text-anchor="middle" font-size="10" font-weight="bold" fill="#FFFFFF">Deploy:  cdk deploy SamPrototypeStack  |  Profile: ds-shared  |  Account: 890336468788  |  ap-southeast-2</text>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!--  ARROWS                                                              -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+
+  <!-- Internet → HTTP API GW -->
+  <line x1="600" y1="107" x2="600" y2="142" stroke="#00838F" stroke-width="2" marker-end="url(#arr-teal)"/>
+  <text x="608" y="128" font-size="9" fill="#00838F">HTTPS</text>
+
+  <!-- HTTP API GW Routes → LiveAlias (invoke) -->
+  <path d="M 417,340 V 370 H 402 V 590" fill="none" stroke="#E65100" stroke-width="2" marker-end="url(#arr-orange)"/>
+  <text x="422" y="367" font-size="9" font-weight="bold" fill="#E65100">invoke</text>
+
+  <!-- currentVersion → LiveAlias (alias points to version) -->
+  <line x1="268" y1="629" x2="282" y2="629" stroke="#E65100" stroke-width="1.5" marker-end="url(#arr-orange)"/>
+
+  <!-- ApiHandler → currentVersion (creates version) -->
+  <path d="M 158,577 V 590" fill="none" stroke="#E65100" stroke-width="1.5" marker-end="url(#arr-orange)"/>
+
+  <!-- ApiHandler → Logs -->
+  <path d="M 285,577 V 590 V 660 V 682" fill="none" stroke="#FF8F00" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#arr-amber)"/>
+  <text x="290" y="672" font-size="9" fill="#FF8F00">logs</text>
+
+  <!-- CodeDeploy DeploymentGroup → LiveAlias (manages alias weights) -->
+  <path d="M 578,559 H 540 V 629 H 522" fill="none" stroke="#558B2F" stroke-width="1.5" marker-end="url(#arr-green)"/>
+  <text x="526" y="601" font-size="8" fill="#558B2F" transform="rotate(-90, 526, 601)">manages alias</text>
+
+  <!-- ErrorAlarm → DeploymentGroup (rollback trigger, dashed) -->
+  <line x1="810" y1="666" x2="810" y2="600" stroke="#FF8F00" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#arr-amber)"/>
+  <text x="815" y="637" font-size="9" fill="#FF8F00">rollback trigger</text>
+
+  <!-- LiveAlias → ErrorAlarm (metrics feed) -->
+  <path d="M 522,629 H 548 V 705 H 578" fill="none" stroke="#FF8F00" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#arr-amber)"/>
+  <text x="530" y="695" font-size="8" fill="#FF8F00">error metrics</text>
+
+  <!-- ── Legend ─────────────────────────────────────────────────────────── -->
+  <rect x="10" y="835" width="1180" height="50" rx="6" fill="#F5F5F5" stroke="#BDBDBD" stroke-width="1"/>
+  <text x="26" y="852" font-size="11" font-weight="bold" fill="#333">Legend</text>
+
+  <rect x="26" y="861" width="14" height="10" fill="#E0F7FA" stroke="#00838F" stroke-width="1"/>
+  <text x="46" y="870" font-size="10" fill="#333">API Gateway v2</text>
+
+  <rect x="172" y="861" width="14" height="10" fill="#FFE0B2" stroke="#E65100" stroke-width="1"/>
+  <text x="192" y="870" font-size="10" fill="#333">Lambda</text>
+
+  <rect x="252" y="861" width="14" height="10" fill="#DCEDC8" stroke="#558B2F" stroke-width="1"/>
+  <text x="272" y="870" font-size="10" fill="#333">CodeDeploy</text>
+
+  <rect x="372" y="861" width="14" height="10" fill="#FFF8E1" stroke="#FF8F00" stroke-width="1"/>
+  <text x="392" y="870" font-size="10" fill="#333">CloudWatch</text>
+
+  <line x1="484" y1="866" x2="514" y2="866" stroke="#00838F" stroke-width="2" marker-end="url(#arr-teal)"/>
+  <text x="520" y="870" font-size="10" fill="#333">HTTP request flow</text>
+
+  <line x1="648" y1="866" x2="678" y2="866" stroke="#E65100" stroke-width="2" marker-end="url(#arr-orange)"/>
+  <text x="684" y="870" font-size="10" fill="#333">Lambda invocation</text>
+
+  <line x1="800" y1="866" x2="830" y2="866" stroke="#558B2F" stroke-width="1.5" marker-end="url(#arr-green)"/>
+  <text x="836" y="870" font-size="10" fill="#333">Canary traffic shift</text>
+
+  <line x1="960" y1="866" x2="990" y2="866" stroke="#FF8F00" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#arr-amber)"/>
+  <text x="996" y="870" font-size="10" fill="#333">Alarm / rollback</text>
+
+</svg>
