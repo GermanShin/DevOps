@@ -1,0 +1,17 @@
+# Downloaded providers and modules — never commit these
+.terraform/
+
+# Local state files — use S3 backend for shared state
+*.tfstate
+*.tfstate.backup
+
+# Sensitive variable files
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Crash logs
+crash.log
+crash.*.log
