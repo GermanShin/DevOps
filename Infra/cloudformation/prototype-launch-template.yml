@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Prototype - Launch Template for ds-backend EC2 instance
+
+Parameters:
+  AmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /ds-app/dev/ec2/ami-id
+    Description: AMI ID resolved from SSM parameter
+
+  InstanceType:
+    Type: String
+    Default: t3.small
+
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Public subnet to launch the instance into
+
+  SecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security group for the instance
+
+  InstanceProfileName:
+    Type: String
+    Description: IAM instance profile name (must have AmazonSSMManagedInstanceCore)
+
+Resources:
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: ds-backend-prototype-lt
+      VersionDescription: !Sub "AMI: ${AmiId}"
+      LaunchTemplateData:
+        ImageId: !Ref AmiId
+        InstanceType: !Ref InstanceType
+        IamInstanceProfile:
+          Name: !Ref InstanceProfileName
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            SubnetId: !Ref SubnetId
+            Groups: [!Ref SecurityGroupId]
+            AssociatePublicIpAddress: true
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - { Key: Name,        Value: ds-backend-prototype }
+              - { Key: Environment, Value: dev }
+              - { Key: Project,     Value: ds-app }
+              - { Key: Owner,       Value: Dylan.Shin }
+        MetadataOptions:
+          HttpTokens: required       # IMDSv2 enforced
+          HttpEndpoint: enabled
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      Tags:
+        - { Key: Name,        Value: ds-backend-prototype }
+        - { Key: Environment, Value: dev }
+
+Outputs:
+  InstanceId:
+    Value: !Ref Instance
+    Description: Connect via SSM Session Manager to verify the instance
+
+  LaunchTemplateId:
+    Value: !Ref LaunchTemplate
+    Description: Reuse this Launch Template for future instances

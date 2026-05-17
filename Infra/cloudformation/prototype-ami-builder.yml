@@ -1,0 +1,249 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Prototype - EC2 Image Builder for ds-backend (no NAT, artifacts from S3)
+
+Parameters:
+  ArtifactsBucket:
+    Type: String
+    Description: S3 bucket containing pre-uploaded Java and Tomcat tarballs
+
+  CorrettoVersion:
+    Type: String
+    Default: "21.0.11.10.1"
+
+  TomcatVersion:
+    Type: String
+    Default: "10.1.55"
+
+  TomcatMajorVersion:
+    Type: String
+    Default: "10"
+
+Resources:
+
+  # ── Minimal VPC (free - public subnet + IGW only, no NAT) ─────────────────
+  BuilderVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.99.0.0/24
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{ Key: Name, Value: ami-builder-vpc }]
+
+  BuilderSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref BuilderVpc
+      CidrBlock: 10.99.0.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      Tags: [{ Key: Name, Value: ami-builder-public-subnet }]
+
+  BuilderIgw:
+    Type: AWS::EC2::InternetGateway
+
+  BuilderIgwAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref BuilderVpc
+      InternetGatewayId: !Ref BuilderIgw
+
+  BuilderRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref BuilderVpc
+
+  BuilderDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: BuilderIgwAttachment
+    Properties:
+      RouteTableId: !Ref BuilderRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref BuilderIgw
+
+  BuilderSubnetRouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref BuilderSubnet
+      RouteTableId: !Ref BuilderRouteTable
+
+  # S3 Gateway Endpoint — free, routes S3 traffic without leaving AWS
+  S3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcId: !Ref BuilderVpc
+      RouteTableIds: [!Ref BuilderRouteTable]
+
+  # ── Security Group (outbound only) ───────────────────────────────────────
+  BuilderSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EC2 Image Builder - outbound only
+      VpcId: !Ref BuilderVpc
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+
+  # ── IAM ──────────────────────────────────────────────────────────────────
+  BuilderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/EC2InstanceProfileForImageBuilder
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: ReadArtifactsBucket
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:ListBucket]
+                Resource:
+                  - !Sub arn:aws:s3:::${ArtifactsBucket}
+                  - !Sub arn:aws:s3:::${ArtifactsBucket}/*
+
+  BuilderInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref BuilderRole]
+
+  # ── Component: install Java 21 + Tomcat from S3 ───────────────────────────
+  InstallComponent:
+    Type: AWS::ImageBuilder::Component
+    Properties:
+      Name: ds-backend-install-s3-prototype
+      Platform: Linux
+      Version: 1.0.0
+      Data: !Sub |
+        name: InstallDsBackend
+        schemaVersion: 1.0
+        phases:
+          - name: build
+            steps:
+              - name: InstallJava
+                action: ExecuteBash
+                inputs:
+                  commands:
+                    - |
+                      set -euo pipefail
+                      echo "==> Downloading Corretto 21 from S3..."
+                      aws s3 cp s3://${ArtifactsBucket}/artifacts/amazon-corretto-${CorrettoVersion}-linux-x64.tar.gz /tmp/corretto.tar.gz \
+                        --region ${AWS::Region}
+                      mkdir -p /opt/java
+                      tar -xzf /tmp/corretto.tar.gz -C /opt/java --strip-components=1
+                      rm -f /tmp/corretto.tar.gz
+                      echo "export JAVA_HOME=/opt/java" > /etc/profile.d/java.sh
+                      echo "export PATH=/opt/java/bin:\$PATH" >> /etc/profile.d/java.sh
+                      echo "==> Java installed: $(/opt/java/bin/java -version 2>&1 | head -1)"
+
+              - name: InstallTomcat
+                action: ExecuteBash
+                inputs:
+                  commands:
+                    - |
+                      set -euo pipefail
+                      echo "==> Downloading Tomcat ${TomcatVersion} from S3..."
+                      aws s3 cp s3://${ArtifactsBucket}/artifacts/apache-tomcat-${TomcatVersion}.tar.gz /tmp/tomcat.tar.gz \
+                        --region ${AWS::Region}
+                      useradd -r -m -U -d /opt/tomcat -s /bin/false tomcat || true
+                      mkdir -p /opt/tomcat
+                      tar -xzf /tmp/tomcat.tar.gz -C /opt/tomcat --strip-components=1
+                      rm -f /tmp/tomcat.tar.gz
+                      chown -R tomcat:tomcat /opt/tomcat
+                      chmod -R u+x /opt/tomcat/bin
+                      {
+                        echo '[Unit]'
+                        echo 'Description=Apache Tomcat'
+                        echo 'After=network.target'
+                        echo '[Service]'
+                        echo 'Type=forking'
+                        echo 'User=tomcat'
+                        echo 'Environment=JAVA_HOME=/opt/java'
+                        echo 'Environment=CATALINA_HOME=/opt/tomcat'
+                        echo 'ExecStart=/opt/tomcat/bin/startup.sh'
+                        echo 'ExecStop=/opt/tomcat/bin/shutdown.sh'
+                        echo 'Restart=on-failure'
+                        echo '[Install]'
+                        echo 'WantedBy=multi-user.target'
+                      } > /etc/systemd/system/tomcat.service
+                      systemctl daemon-reload
+                      systemctl enable tomcat
+                      echo "==> Tomcat installed at /opt/tomcat"
+
+              - name: InstallCodeDeployAgent
+                action: ExecuteBash
+                inputs:
+                  commands:
+                    - |
+                      set -euo pipefail
+                      dnf install -y ruby wget
+                      wget -q https://aws-codedeploy-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/latest/install \
+                        -O /tmp/cd-install
+                      chmod +x /tmp/cd-install && /tmp/cd-install auto
+                      systemctl enable codedeploy-agent
+
+          - name: validate
+            steps:
+              - name: ValidateJava
+                action: ExecuteBash
+                inputs:
+                  commands:
+                    - |
+                      set -euo pipefail
+                      /opt/java/bin/java -version
+              - name: ValidateTomcat
+                action: ExecuteBash
+                inputs:
+                  commands:
+                    - |
+                      set -euo pipefail
+                      test -f /opt/tomcat/bin/startup.sh
+                      systemctl is-enabled tomcat
+
+  # ── Image Recipe ──────────────────────────────────────────────────────────
+  ImageRecipe:
+    Type: AWS::ImageBuilder::ImageRecipe
+    Properties:
+      Name: ds-backend-recipe-s3-prototype
+      Version: 1.0.0
+      ParentImage: !Sub arn:aws:imagebuilder:${AWS::Region}:aws:image/amazon-linux-2023-x86/x.x.x
+      Components:
+        - ComponentArn: !Ref InstallComponent
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs: { VolumeSize: 20, VolumeType: gp3, DeleteOnTermination: true }
+
+  # ── Infrastructure Configuration ──────────────────────────────────────────
+  InfraConfig:
+    Type: AWS::ImageBuilder::InfrastructureConfiguration
+    Properties:
+      Name: ds-backend-infra-s3-prototype
+      InstanceProfileName: !Ref BuilderInstanceProfile
+      InstanceTypes: [t3.small]
+      SubnetId: !Ref BuilderSubnet
+      SecurityGroupIds: [!GetAtt BuilderSg.GroupId]
+      TerminateInstanceOnFailure: true
+
+  # ── Image Pipeline ────────────────────────────────────────────────────────
+  ImagePipeline:
+    Type: AWS::ImageBuilder::ImagePipeline
+    Properties:
+      Name: ds-backend-pipeline-s3-prototype
+      ImageRecipeArn: !Ref ImageRecipe
+      InfrastructureConfigurationArn: !Ref InfraConfig
+      Status: ENABLED
+
+Outputs:
+  PipelineArn:
+    Value: !Ref ImagePipeline
+    Description: ARN to use with start-image-pipeline-execution
+
+  ArtifactsBucket:
+    Value: !Ref ArtifactsBucket
+    Description: S3 bucket holding the build artifacts
